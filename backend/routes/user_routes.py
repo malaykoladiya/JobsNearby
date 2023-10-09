@@ -10,27 +10,31 @@ from bson import ObjectId
 
 @app.route('/user/signup', methods = ['POST'])
 def user_signup():
-            name = request.json.get('name')
-            email = request.json.get('email')
-            password = request.json.get('password')
-            
-            passhash = bcrypt.generate_password_hash(password).decode('utf-8')
-            
-            
-            user_data = {
-                'name': name,
-                'email': email,
-                'password': passhash
-            }
-            try:
-                db.user.insert_one(user_data)
-            except pymongo.errors.DuplicateKeyError:
-                return jsonify({"error": "Email already in use"}), 400
+    """
+    requst body format:
 
-            user = User(user_data)
+    {
+        "name": "user name",
+        "email": "user email",
+        "password": "user password"
+    }
+    """
+    if request.method == 'POST':
+        if request.json is not None and bool(request.json):
+            data = request.json
+        
+        passhash = bcrypt.generate_password_hash(data["password"]).decode('utf-8')
+        data.pop("password")
+        data["password"] = passhash
+        
+        try:
+            db.user.insert_one(data)
+            user = User(data)
             session['user_type'] = 'user'
             login_user(user)
             return jsonify({"message": "Job Seeker Signup Successful!"}), 200
+        except pymongo.errors.DuplicateKeyError:
+            return jsonify({"error": "Email already in use"}), 400
 
 
 @app.route('/user/logout')
@@ -43,24 +47,28 @@ def user_logout():
     return redirect('/user/login')
 
 
-@app.route('/user/login', methods=['GET','POST'])
+@app.route('/user/login', methods=['POST'])
 def user_login():
-    if request.method == 'POST':
-        email = request.json.get('email')
-        password = request.json.get('password')
+    """
+    requst body format:
 
-        user_data = db.user.find_one({'email': email})
+    {
+        "email": "user email",
+        "password": "user password"
+    }
+    """
+    if request.method == 'POST':
+        if request.json is not None and bool(request.json):
+            data = request.json
+
+        user_data = db.user.find_one({"email": data.get("email")})
         
-        if user_data and bcrypt.check_password_hash(user_data['password'], password):
-            user_obj = User(user_data)
+        if user_data and bcrypt.check_password_hash(user_data['password'], data['password']):
             session['user_type'] = 'user'
-            login_user(user_obj)
+            login_user(User(user_data))
             return jsonify({"message": "Job Seeker Login Successful"}), 200
         else:    
             return jsonify({"error": "Invalid credentials"}), 401
-    
-    elif request.method == 'GET':
-            return jsonify({"message": "This is the login page"}), 200
 
 
 @app.route('/user/profile', methods = ['GET', 'POST'])
@@ -71,23 +79,68 @@ def user_profile():
         return jsonify({trt:getattr(current_user, trt) for trt in trait})
         
     elif request.method == 'POST':
-        possible_fields = ['name', 'email', 'password']
-        
-        update_fields = {field: request.json.get(field) for field in possible_fields if request.json.get(field)}
+        """
+        requst body format:
 
-        #Handling password
-        password = request.json.get('password')
-        if password:
-            hashedPassword = bcrypt.generate_password_hash(password).decode('utf-8')
-            update_fields['password'] = hashedPassword
-        
-        if update_fields:
+        {
+            "name": "user name",
+            "email": "user email",
+            "password": "user password"
+            #add other fields
+        }
+        """
+        if request.json is not None and bool(request.json):
+            data = request.json
+
+        existing_user_data = db.user.find_one({'_id': ObjectId(current_user.id)})
+
+        if existing_user_data:
+            for key,value in data.items():
+                if key!= 'password' and key in existing_user_data:
+                    existing_user_data[key] = value
+            
             db.user.update_one(
                 {'_id': ObjectId(current_user.id)},
-                {'$set': update_fields}
+                {'$set': existing_user_data}
             )
+            return jsonify({"message": "Job Seeker Profile updated seccessfully"})
+        else:
+            return jsonify({"error": "Job Seeker not found"}), 404
+        
 
-        return jsonify({"message": "Job Seeker Profile updated seccessfully"})
+@app.route('/user/updatepassword', methods = ['POST'])
+@login_required
+def update_password():
+    """
+    requst body format:
+
+    {
+        "old_password": "old user password"
+        "new_password": "new user password"
+    }
+    """
+    if request.json is not None and bool(request.json):
+        data = request.json
+    
+    existing_user_data = db.user.find_one({'_id': ObjectId(current_user.id)})
+    
+    if existing_user_data:
+        old_password = data['old_password']
+
+        if old_password and not bcrypt.check_password_hash(existing_user_data['password'], old_password):
+            return jsonify({"error": "Old password is incorrect"}), 401
+        
+        new_password = data['new_password']
+        new_pass_hash = bcrypt.check_password_hash(new_password).decode('utf-8')
+        existing_user_data['password'] = new_pass_hash
+
+        db.user.update_one(
+            {'_id': ObjectId(current_user.id)},
+            {'$set': {'password': existing_user_data['password']}}
+        )
+        return jsonify({"message": "Paassword updates sucessfully"}), 200
+    else:
+        return jsonify({"error": "Job Seeker not found"}), 404
 
 
 @app.route('/user/searchjobs', methods = ['GET'])
@@ -115,4 +168,11 @@ def apply_jobs():
           {'_id': ObjectId(user_id)},
           {'$push' :  {'applications' : application}}
      )
+
+     # update the job document as well
+     db.jobs.update_one(
+        {'_id': ObjectId(job_id)},
+        {'$push' :  {'applicants' : user_id}}
+    )
+     
      return jsonify({"message": "Successfully applied for the job!"})
