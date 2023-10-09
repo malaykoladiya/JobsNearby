@@ -29,9 +29,6 @@ def load_user(id):
     return None
 
 
-
-
-
 # MongoDB databse
 client = MongoClient('localhost', 27017)
 db = client['jobsnearby']
