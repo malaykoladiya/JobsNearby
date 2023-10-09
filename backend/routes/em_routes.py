@@ -10,28 +10,32 @@ from bson import ObjectId
 
 @app.route('/employer/signup', methods = ['POST'])
 def em_signup():
-    if request.method == 'POST':
-        name = request.json.get('name')
-        email = request.json.get('email')
-        password = request.json.get('password')
-            
-        passhash = bcrypt.generate_password_hash(password).decode('utf-8')
-            
-        employer_data = {
-            'name': name,
-            'email': email,
-            'password': passhash
-            }
+    """
+    requst body format:
 
+    {
+        "name": "employer name",
+        "email": "employer email",
+        "password": "employer password"
+    }
+    """
+    if request.method == 'POST':
+        if request.json is not None and bool(request.json):
+            data = request.json  
+        
+        passhash = bcrypt.generate_password_hash(data["password"]).decode('utf-8')
+        data.pop("password")
+        data["password"] = passhash
+        
+        
         try:
-            db.employer.insert_one(employer_data)
+            db.employer.insert_one(data)
+            employer = Employer(data)
+            session['user_type'] = 'employer'
+            login_user(employer)
+            return jsonify({"message": "Employer Signup Successful!"}), 200
         except pymongo.errors.DuplicateKeyError:
             return jsonify({"error": "Email already in use"}), 400
-                
-        employer = Employer(employer_data)
-        session['user_type'] = 'employer'
-        login_user(employer)
-        return jsonify({"message": "Employer Signup Successful!"}), 200
 
 
 @app.route('/employer/logout')
@@ -44,26 +48,29 @@ def em_logout():
     return redirect('/employer/login')
 
 
-@app.route('/employer/login', methods=['GET','POST'])
+@app.route('/employer/login', methods=['POST'])
 def em_login():
+    """
+    requst body format:
+
+    {
+        "email": "employer email",
+        "password": "employer password"
+    }
+    """
     if request.method == 'POST':
-        email = request.json.get('email')
-        password = request.json.get('password')
+        if request.json is not None and bool(request.json):
+            data = request.json
 
         # Find the user based on the email
-        em_data = db.employer.find_one({'email': email})
+        em_data = db.employer.find_one({"email": data.get("email")})
     
-        if em_data and bcrypt.check_password_hash(em_data['password'], password):
-            em_obj = Employer(em_data)
+        if em_data and bcrypt.check_password_hash(em_data['password'], data["password"]):
             session['user_type'] = 'employer'
-            login_user(em_obj)
+            login_user(Employer(em_data))
             return jsonify({"message": "Employer Login Successful"}), 200
-        
         else:
             return jsonify({"error" : "Invalid credentials!"}), 401
-        
-    elif request.method == 'GET':    
-        return jsonify({"message": "this is the employer login page"}), 200
 
 
 @app.route('/employer/profile', methods = ['GET', 'POST'])
@@ -74,22 +81,69 @@ def employer_profile():
         return jsonify({em_trt: getattr(current_user,em_trt) for em_trt in em_trait})
         
     elif request.method == 'POST':
-        em_possible_fields = ['name', 'email', 'password']
-        em_update_fields = {em_field: request.json.get(em_field) for em_field in em_possible_fields if request.json.get(em_field)}
+        """
+        requst body format:
 
-        #Password Handling
-        em_password = request.json.get('password')
-        if em_password:
-            em_hashedpassword = bcrypt.generate_password_hash(em_password).decode('utf-8')
-            em_update_fields['em_password'] = em_hashedpassword
-        
-        if em_update_fields:
+        {
+            "name": "employer name",
+            "email": "employer email",
+            "password": "employer password"
+            #add other fields
+        }
+        """
+
+        if request.json is not None and bool(request.json):
+            data = request.json
+        existing_employer_data = db.employer.find_one({'_id': ObjectId(current_user.id)})
+
+        if existing_employer_data:
+            for key,value in data.items():
+                if key!= 'password' and key in existing_employer_data:
+                    existing_employer_data[key] = value
+            
             db.employer.update_one(
                 {'_id': ObjectId(current_user.id)},
-                {'$set': em_update_fields}
+                {'$set': existing_employer_data}
             )
+            return jsonify({"message": "Employer Profile updated seccessfully"})
+        else:
+            return jsonify({"error": "Employer not found"}), 404
 
-        return jsonify({"message": "Employer Profile updated seccessfully"})
+
+@app.route('/employer/updatepassword', methods = ['POST'])
+@login_required
+def em_update_password():
+    """
+    requst body format:
+
+    {
+        "old_password": "old employer password"
+        "new_password": "new employer password"
+    }
+    """
+    if request.json is not None and bool(request.json):
+        data = request.json()
+    
+    existing_employer_data = db.employer.find_one({'_id': ObjectId(current_user.id)})
+    
+    if existing_employer_data:
+        old_password = data.get('old_password')
+
+        if old_password and not bcrypt.check_password_hash(existing_employer_data['password'], old_password):
+            return jsonify({"error": "Old password is incorrect"}), 401
+        
+        new_password = data.get('new_password')
+        new_pass_hash = bcrypt.check_password_hash(new_password).decode('utf-8')
+        existing_employer_data['password'] = new_pass_hash
+
+        db.employer.update_one(
+            {'_id': ObjectId(current_user.id)},
+            {'$set': {'password': existing_employer_data['password']}}
+        )
+        return jsonify({"message": "Paassword updates sucessfully"}), 200
+    else:
+        return jsonify({"error": "Employer not found"}), 404
+
     
 
 @app.route('/employer/postjob', methods = ['POST'])
@@ -100,18 +154,30 @@ def post_jobs():
     if not session.get('user_type') == 'employer':
         return jsonify({"error": "Acess denied! Only employers can post jobs."}), 403
     
-    job_title = request.json.get('job_title')
-    job_description = request.json.get('job_description')
-    job_requirement = request.json.get('job_requirement')
-    job_id = request.json.get('job_requirement')
+    """
+        requst body format:
+
+        {
+            "req_id": "req id",
+            "company_name": "comapny name"
+            "job_title": "job title",
+            "job_description": "job description"
+            "job_requirement": "job requirement"
+            #add other fields
+        }
+    """
+
+    if request.json() != None or request.json() != "":
+        data = request.json()
     
 
     job_data = {
-        "job_id" : job_id,
+        "req_id" : data.get('req_id'),
+        "company_name": data.get('comapny_name'),
         "employer_id": ObjectId(current_user.id),
-        "job_title" : job_title ,
-        "job_description" : job_description,
-        'job_requirements' : job_requirement,
+        "job_title" : data.get('job_title'),
+        "job_description" : data.get('job_description'),
+        "job_requirements" : data.get('job_requirement'),
     }
 
     try:
@@ -135,10 +201,12 @@ def employer_job():
         job_list = []
         for job in jobs:
             job_data = {
-                "job_id" : job.get("job_id"),
+                "req_id" : job.get("req_id"),
+                "company_name": job.get('comapny_name'),
                 "job_title" : job.get("job_title") ,
                 "job_description" : job.get("job_description"),
-                "job_requirements" : job.get("job_requirements")
+                "job_requirements" : job.get("job_requirements"),
+                "applicants": job.get("applicants", [])
             }
             job_list.append(job_data)
         return jsonify({"jobs" :"job_list"}), 200
