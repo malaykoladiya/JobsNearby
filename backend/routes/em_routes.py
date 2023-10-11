@@ -8,16 +8,15 @@ import pymongo
 from bson import ObjectId
 import traceback
 
+
 @app.route('/employer/signup', methods = ['POST'])
 def em_signup():
     """
-    requst body format:
-
-    {
-        "name": "employer name",
-        "email": "employer email",
-        "password": "employer password"
-    }
+    This function handles the employer signup process.
+    It accepts a POST request with a JSON object containing the employer's name, email, and password.
+    The password is hashed using bcrypt and the employer's data is inserted into the database.
+    If the signup is successful, the employer is logged in and a success message is returned.
+    If the email is already in use, an error message is returned.
     """
     if request.method == 'POST':
         if request.json is not None and bool(request.json):
@@ -41,6 +40,13 @@ def em_signup():
 @app.route('/employer/logout')
 @login_required
 def em_logout():
+    """
+    Logs out the authenticated employer user and clears the session.
+
+    Returns:
+        A JSON response with a success message if the logout is successful.
+        Otherwise, redirects to the employer login page.
+    """
     if current_user.is_authenticated:
         logout_user()
         session.clear()
@@ -51,12 +57,17 @@ def em_logout():
 @app.route('/employer/login', methods=['POST'])
 def em_login():
     """
-    requst body format:
+    Endpoint for employer login.
 
+    Request body format:
     {
         "email": "employer email",
         "password": "employer password"
     }
+
+    Returns:
+    - If login is successful, returns a JSON object with a success message and a 200 status code.
+    - If login fails, returns a JSON object with an error message and a 401 status code.
     """
     if request.method == 'POST':
         if request.json is not None and bool(request.json):
@@ -76,9 +87,19 @@ def em_login():
 @app.route('/employer/profile', methods = ['GET', 'POST'])
 @login_required
 def employer_profile():
+    """
+    This function handles GET and POST requests for employer profile.
+    GET request returns the employer data.
+    POST request updates the employer data.
+
+    :return: JSON response with employer data or error message.
+    """
+
     if request.method == "GET":    
+        # Get employer data from the database
         employer_data = db.employer.find_one({'_id': ObjectId(current_user._id)})
         if employer_data:
+            # Remove sensitive data from the employer data
             employer_data.pop('password', None)
             employer_data.pop('_id', None)
             return jsonify(employer_data), 200
@@ -96,15 +117,20 @@ def employer_profile():
         }
         """
 
+        # Get the request data
         if request.json is not None and bool(request.json):
             data = request.json
+
+        # Get existing employer data from the database
         existing_employer_data = db.employer.find_one({'_id': ObjectId(current_user._id)})
 
         if existing_employer_data:
+            # Update the existing employer data with the new data
             for key,value in data.items():
                 if key!= 'password' and key in existing_employer_data:
                     existing_employer_data[key] = value
             
+            # Update the employer data in the database
             db.employer.update_one(
                 {'_id': ObjectId(current_user._id)},
                 {'$set': existing_employer_data}
@@ -161,7 +187,18 @@ def em_update_password():
 @app.route('/employer/postjob', methods = ['POST'])
 @login_required
 def post_jobs():
+    """
+    This function allows employers to post jobs on the platform. 
+    It checks if the user is an employer and then extracts the job data from the request body.
+    The job data is then inserted into the database. 
 
+    Args:
+        None
+
+    Returns:
+        A JSON response indicating whether the job was posted successfully or not.
+    """
+    
     # Check if the user is an employer
     if not session.get('user_type') == 'employer':
         return jsonify({"error": "Acess denied! Only employers can post jobs."}), 403
@@ -204,18 +241,26 @@ def post_jobs():
 @app.route('/employer/viewjobs', methods = ['GET'])
 @login_required
 def view_all_jobs():
+    """
+    This function returns all the jobs posted by the employer who is currently logged in.
+    It only sends necessary data to the front end.
+    """
     if not session.get('user_type') == 'employer':
+        # If the user is not an employer, return an error message with status code 403.
         return jsonify({"error": "Access denied! Only employers can view their posted jobs"}), 403
     
     try:
+        # Find all the jobs posted by the current employer.
         jobs = db.jobs.find({'employer_id': ObjectId(current_user._id)})
 
         if not jobs:
+            # If no jobs are found, return an error message with status code 404.
             return jsonify({"error": "No jobs found"}), 404
 
         # only send necesary data to the front end
         job_list= []
         for job in jobs:
+            # Extract only the necessary data from each job and append it to the job_list.
             job_data = {
                 "req_id" : jobs.get("req_id"),
                 "company_name": jobs.get('comapny_name'),
@@ -225,14 +270,28 @@ def view_all_jobs():
             }
             job_list.append(job_data)
         
+        # Return the job_list with status code 200.
         return jsonify({"jobs": job_list}), 200
     
     except pymongo.errors.PyMongoError as e:
+        # If an error occurs while fetching jobs, return an error message with status code 500.
         return jsonify({"error": "An error occured while fetching jobs. Please try again later"}), 500
+
 
 @app.route('/employer/viewjobs/<job_id>', methods = ['GET'])
 @login_required
 def employer_job(job_id):
+    """
+    This function is used to fetch the details of a job posted by an employer.
+    It takes in a job_id as a parameter and returns the job details along with the list of applicants who have applied for the job.
+
+    Args:
+        job_id (str): The id of the job to be fetched.
+
+    Returns:
+        A JSON response containing the job details and the list of applicants who have applied for the job.
+    """
+    
     if not session.get('user_type') == 'employer':
         return jsonify({"error": "Access denied! Only employers can view their posted jobs"}), 403
     
@@ -272,27 +331,51 @@ def employer_job(job_id):
         return jsonify({job_data}), 200
     except pymongo.errors.PyMongoError as e:
         return jsonify({"error": "An error occured while fetching job details. Please try again later."}), 500
-    
+
+
 @app.route('/employer/deletejob/<job_id>', methods = ['DELETE'])
 @login_required
 def delete_jobs(job_id):
+    """
+    This function deletes a job and its related applications from the database.
+
+    Args:
+        job_id (str): The ID of the job to be deleted.
+
+    Returns:
+        A JSON response containing a success or error message.
+
+    Raises:
+        400 Bad Request: If job_id is not provided.
+        403 Forbidden: If the user is not an employer.
+        404 Not Found: If the job with the given job_id is not found.
+        500 Internal Server Error: If an error occurs while deleting the job.
+    """
+    # Check if the user is an employer
     if not session.get('user_type') == 'employer':
         return jsonify({"error": "Access Denied, Only employers can delete jobs"}), 403
     
+    # Check if job_id is provided
     if not job_id:
         return jsonify({"error": "Job ID Required"}), 400
     
     try:
+        # Find the job with the given job_id and employer_id
         job = db.jobs.find_one({'_id': ObjectId(job_id), 'employer_id': ObjectId(current_user.id) })
         
+        # If job is not found, return 404 Not Found error
         if not job:
             return jsonify({"error": "Job not found"}), 404
         
+        # Delete the job from the database
         db.job.delete_one({'_id': ObjectId(job_id)})
         
+        # Delete all the applications related to the job from the database
         db.applications.delete_many({'job_id': ObjectId(job_id)})
         
+        # Return success message
         return jsonify({"message": "Job and its related applications are deleted sucessfully!"}), 200
     
     except pymongo.errors.PyMongoError as e:
+        # Return 500 Internal Server Error if an error occurs while deleting the job
         return jsonify({"error": "An error occured while deleting the job. Please try again later"}), 500
