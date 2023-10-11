@@ -1,5 +1,4 @@
 from flask import Flask, render_template, redirect, jsonify, session
-from functools import wraps
 from pymongo import MongoClient
 from flask_login import LoginManager
 from flask_login import logout_user, login_required, login_user, current_user
@@ -37,15 +36,30 @@ db = client['jobsnearby']
 db.jobs.create_index("job_id", unique=True)
 db.user.create_index("email", unique = True)
 db.employer.create_index("email", unique = True)
+db.jobs.create_index([("title", "text"), ("description", "text")])
+
 
 #routes
 from routes import user_routes, em_routes
 
 @app.route('/')
 def home():
-    return render_template('home.html')
+    latest_jobs = db.jobs.find().limit(10)
+    job_list = [job for job in latest_jobs]
+
+    return jsonify(jobs=job_list), 200
 
 @app.route('/dashboard/')
 @login_required
 def dashboard():
-    return render_template('dashboard.html')
+    user_type = session.get('user_type')
+
+    if user_type == 'user':
+        applied_jobs = db.users.find()
+        return jsonify(applied_jobs = [job for job in applied_jobs]), 200
+    
+    elif user_type == 'employer':
+        posted_jobs = db.jobs.find()
+        return jsonify(posted_jobs = [job for job in posted_jobs]), 200
+    
+    
