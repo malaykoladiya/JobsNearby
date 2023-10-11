@@ -5,8 +5,8 @@ from flask_login import logout_user, login_required, login_user, current_user
 from app import bcrypt
 from app import db
 import pymongo
-from functools import wraps
 from bson import ObjectId
+import traceback
 
 @app.route('/employer/signup', methods = ['POST'])
 def em_signup():
@@ -77,8 +77,13 @@ def em_login():
 @login_required
 def employer_profile():
     if request.method == "GET":    
-        em_trait = ['name', 'email']
-        return jsonify({em_trt: getattr(current_user,em_trt) for em_trt in em_trait})
+        employer_data = db.employer.find_one({'_id': ObjectId(current_user._id)})
+        if employer_data:
+            employer_data.pop('password', None)
+            employer_data.pop('_id', None)
+            return jsonify(employer_data), 200
+        else:
+            return jsonify({"error": "Employer not found"}), 404
         
     elif request.method == 'POST':
         """
@@ -87,14 +92,13 @@ def employer_profile():
         {
             "name": "employer name",
             "email": "employer email",
-            "password": "employer password"
             #add other fields
         }
         """
 
         if request.json is not None and bool(request.json):
             data = request.json
-        existing_employer_data = db.employer.find_one({'_id': ObjectId(current_user.id)})
+        existing_employer_data = db.employer.find_one({'_id': ObjectId(current_user._id)})
 
         if existing_employer_data:
             for key,value in data.items():
@@ -102,7 +106,7 @@ def employer_profile():
                     existing_employer_data[key] = value
             
             db.employer.update_one(
-                {'_id': ObjectId(current_user.id)},
+                {'_id': ObjectId(current_user._id)},
                 {'$set': existing_employer_data}
             )
             return jsonify({"message": "Employer Profile updated seccessfully"})
@@ -121,30 +125,38 @@ def em_update_password():
         "new_password": "new employer password"
     }
     """
-    if request.json is not None and bool(request.json):
-        data = request.json()
-    
-    existing_employer_data = db.employer.find_one({'_id': ObjectId(current_user.id)})
-    
-    if existing_employer_data:
-        old_password = data.get('old_password')
-
-        if old_password and not bcrypt.check_password_hash(existing_employer_data['password'], old_password):
-            return jsonify({"error": "Old password is incorrect"}), 401
+    try:
+        if request.json is None or not bool(request.json):
+            return jsonify({"error": "Bad Request"}), 400
+            
+        data = request.json
+        old_password = data.get("old_password")
+        new_password = data.get("new_password")
         
-        new_password = data.get('new_password')
-        new_pass_hash = bcrypt.check_password_hash(new_password).decode('utf-8')
-        existing_employer_data['password'] = new_pass_hash
+        if not old_password or not new_password:
+            return jsonify({"error": "Both old and new password are required"}), 400
+        
+        existing_employer_data = db.employer.find_one({'_id': ObjectId(current_user._id)})
+        
+        if existing_employer_data:
 
-        db.employer.update_one(
-            {'_id': ObjectId(current_user.id)},
-            {'$set': {'password': existing_employer_data['password']}}
-        )
-        return jsonify({"message": "Paassword updates sucessfully"}), 200
-    else:
-        return jsonify({"error": "Employer not found"}), 404
+            if not bcrypt.check_password_hash(existing_employer_data['password'], old_password):
+                return jsonify({"error": "Old password is incorrect"}), 401
+            
+            new_pass_hash = bcrypt.generate_password_hash(new_password, rounds=12).decode('utf-8')
 
-    
+            db.employer.update_one(
+                {'_id': ObjectId(current_user._id)},
+                {'$set': {'password': new_pass_hash}}
+            )
+            return jsonify({"message": "Paassword updates sucessfully"}), 200
+        else:
+            return jsonify({"error": "Employer not found"}), 404
+    except pymongo.errors.PyMongoError as e:
+        print("Unexcepted error: ", e)
+        traceback.print_exc()
+        return jsonify({"error": "An error occured while updating password. Please try again later"}), 500
+   
 
 @app.route('/employer/postjob', methods = ['POST'])
 @login_required
@@ -167,14 +179,14 @@ def post_jobs():
         }
     """
 
-    if request.json() != None or request.json() != "":
-        data = request.json()
+    if request.json is not None or bool(request.json):
+        data = request.json
     
 
     job_data = {
         "req_id" : data.get('req_id'),
-        "company_name": data.get('comapny_name'),
-        "employer_id": ObjectId(current_user.id),
+        "company_name": data.get('company_name'),
+        "employer_id": ObjectId(current_user._id),
         "job_title" : data.get('job_title'),
         "job_description" : data.get('job_description'),
         "job_requirements" : data.get('job_requirement'),
@@ -191,24 +203,96 @@ def post_jobs():
 
 @app.route('/employer/viewjobs', methods = ['GET'])
 @login_required
-def employer_job():
+def view_all_jobs():
     if not session.get('user_type') == 'employer':
         return jsonify({"error": "Access denied! Only employers can view their posted jobs"}), 403
     
     try:
-        jobs = db.jobs.find({'employer_id': ObjectId(current_user.id)})
+        jobs = db.jobs.find({'employer_id': ObjectId(current_user._id)})
 
-        job_list = []
+        if not jobs:
+            return jsonify({"error": "No jobs found"}), 404
+
+        # only send necesary data to the front end
+        job_list= []
         for job in jobs:
             job_data = {
-                "req_id" : job.get("req_id"),
-                "company_name": job.get('comapny_name'),
-                "job_title" : job.get("job_title") ,
-                "job_description" : job.get("job_description"),
-                "job_requirements" : job.get("job_requirements"),
-                "applicants": job.get("applicants", [])
+                "req_id" : jobs.get("req_id"),
+                "company_name": jobs.get('comapny_name'),
+                "job_title" : jobs.get("job_title") ,
+                "job_description" : jobs.get("job_description"),
+                "job_requirements" : jobs.get("job_requirements"),
             }
             job_list.append(job_data)
-        return jsonify({"jobs" :"job_list"}), 200
+        
+        return jsonify({"jobs": job_list}), 200
+    
     except pymongo.errors.PyMongoError as e:
-        return jsonify({"error": "An erro occured while fetching jobs. Please try again later."}), 500
+        return jsonify({"error": "An error occured while fetching jobs. Please try again later"}), 500
+
+@app.route('/employer/viewjobs/<job_id>', methods = ['GET'])
+@login_required
+def employer_job(job_id):
+    if not session.get('user_type') == 'employer':
+        return jsonify({"error": "Access denied! Only employers can view their posted jobs"}), 403
+    
+    try:
+        jobs = db.jobs.find({'_id': ObjectId(job_id) , 'employer_id': ObjectId(current_user._id)})
+
+        if not jobs:
+            return jsonify({"error": "Job not found"}), 404
+
+        
+
+        #Fetching the application for the job
+        applications = db.applications.find({'job_id': ObjectId(job_id)})
+        applicants_data = []
+
+        for application in applications:
+            applicant_id = application.get("user_id")
+            applicant = db.user.find_one({'_id': ObjectId(applicant_id)})
+            if applicant:
+                applicant_data = {
+                    "user_id" : str(applicant.get("_id")),
+                    "first_name": applicant.get("first_name"),
+                    "last_name": applicant.get("last_name"),
+                    "email": applicant.get("email")
+                }
+                applicants_data.append(applicant_data)
+        
+        job_data = {
+            "req_id" : jobs.get("req_id"),
+            "company_name": jobs.get('comapny_name'),
+            "job_title" : jobs.get("job_title") ,
+            "job_description" : jobs.get("job_description"),
+            "job_requirements" : jobs.get("job_requirements"),
+            "applicants": applicants_data
+        }
+        
+        return jsonify({job_data}), 200
+    except pymongo.errors.PyMongoError as e:
+        return jsonify({"error": "An error occured while fetching job details. Please try again later."}), 500
+    
+@app.route('/employer/deletejob/<job_id>', methods = ['DELETE'])
+@login_required
+def delete_jobs(job_id):
+    if not session.get('user_type') == 'employer':
+        return jsonify({"error": "Access Denied, Only employers can delete jobs"}), 403
+    
+    if not job_id:
+        return jsonify({"error": "Job ID Required"}), 400
+    
+    try:
+        job = db.jobs.find_one({'_id': ObjectId(job_id), 'employer_id': ObjectId(current_user.id) })
+        
+        if not job:
+            return jsonify({"error": "Job not found"}), 404
+        
+        db.job.delete_one({'_id': ObjectId(job_id)})
+        
+        db.applications.delete_many({'job_id': ObjectId(job_id)})
+        
+        return jsonify({"message": "Job and its related applications are deleted sucessfully!"}), 200
+    
+    except pymongo.errors.PyMongoError as e:
+        return jsonify({"error": "An error occured while deleting the job. Please try again later"}), 500
