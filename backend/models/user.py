@@ -4,13 +4,11 @@ class User(UserMixin):
     def __init__(self, user_data=None):
         if user_data:
             self._id = str(user_data.get('_id'))
-            self.name = user_data.get('name')
+            self.first_name = user_data.get('name')
+            self.last_name = user_data.get('last_name')
+            self.user_name = user_data.get('user_name')
             self.email = user_data.get('email')
             self.password = user_data.get('password')
-            self.profile_image = user_data.get('profile_image')
-            self.resume = user_data.get('resume')
-            self.skills = user_data.get('skills', [])
-            self.education = user_data.get('education', [])
 
 
     def to_json(self):
@@ -19,9 +17,10 @@ class User(UserMixin):
         """
         return {
             '_id': self._id,
-            'name': self.name,
-            'email': self.email,
-            'password': self.password
+            'first_name': self.first_name,
+            'last_name': self.last_name,
+            'user_name': self.user_name,
+            'email': self.email
         }
     def is_employer(self):
         return False
@@ -33,6 +32,4 @@ class User(UserMixin):
     def get_by_id(cls, user_id, db):
         # Implement a method to retrieve a user by their ID from the database
         return User(db.user.find_one({'_id': user_id}))
-    #   Implement this according to your database structure
-
-    # You can add more methods as needed for user management
+   
