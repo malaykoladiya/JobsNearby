@@ -4,7 +4,9 @@ class Employer(UserMixin):
     def __init__(self, em_data=None):
         if em_data:
             self._id = str(em_data.get('_id'))
-            self.name = em_data.get('name')
+            self.first_name = em_data.get('first_name')
+            self.last_name = em_data.get('last_name')
+            self.user_name = em_data.get('user_name')
             self.email = em_data.get('email')
             self.password = em_data.get('password')
 
@@ -14,9 +16,10 @@ class Employer(UserMixin):
         """
         return {
             '_id': self._id,
-            'name': self.name,
-            'email': self.email,
-            'password': self.password
+            'first_name': self.first_name,
+            'last_name': self.last_name,
+            'user_name': self.user_name,
+            'email': self.email
         }
     
     def is_employer(self):
@@ -29,6 +32,4 @@ class Employer(UserMixin):
     def em_get_by_id(cls, em_id, db):
         # Implement a method to retrieve a user by their ID from the database
         return Employer(db.employer.find_one({'_id': em_id}))
-    #   Implement this according to your database structure
-
-    # You can add more methods as needed for user management
+    
