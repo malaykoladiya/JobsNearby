@@ -2,3 +2,10 @@
 **venv**
 **.DS_Store**
 **node_modules**
+**.env**
+**nginx**
+**access.log**
+**error.log**
+**Flasklogs**
+**config.env**
+**logs**
