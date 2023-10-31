@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, redirect, session
+from flask import Flask, request, jsonify, session
 from app import app
 from models.user import User
 from flask_login import logout_user, login_required, login_user, current_user
@@ -8,8 +8,16 @@ import pymongo
 import datetime
 from bson import ObjectId
 import traceback
+from utils.utils import validate_password, is_valid_email
 
-@app.route('/user/signup', methods = ['POST'])
+
+"""
+need to make changes in signup route
+
+        1. when singing up check first if the passwrod format is valid, then check for correct/incorrect password
+
+"""
+@app.route('/api/user/signup', methods = ['POST'])
 def user_signup():
     """
     This function handles the user signup process.
@@ -28,6 +36,17 @@ def user_signup():
     if request.method == 'POST':
         if request.json is not None and bool(request.json):
             data = request.json
+        else:
+            return jsonify({"error": "invalid request format"}), 400
+        
+        data["email"] = data["email"].lower()
+
+    
+        #validate email and password
+        if not is_valid_email(data.get("email", "")):
+            return jsonify({"error": "Invalid email format"}), 400
+        if not validate_password(data.get("password", "")):
+            return jsonify({"error": "Invalid password format or weak password"}), 400
         
         passhash = bcrypt.generate_password_hash(data["password"]).decode('utf-8')
         data.pop("password")
@@ -43,7 +62,7 @@ def user_signup():
             return jsonify({"error": "Email already in use"}), 400
 
 
-@app.route('/user/logout')
+@app.route('/api/user/logout')
 @login_required
 def user_logout():
     """
@@ -57,8 +76,12 @@ def user_logout():
     return jsonify({"message": "Successfully Logout"})
     # return redirect('/user/login')
 
-
-@app.route('/user/login', methods=['POST'])
+"""
+need to make changes in login route
+        1. validate email. when getting email for request.json check first for if it is valid or not than check if the user exisit in the db
+        2. when logging in check first if the passwrod format is valid, then check for correct/incorrect password
+"""
+@app.route('/api/user/login', methods=['POST'])
 def user_login():
     """
     This function handles the login request for users.
@@ -80,7 +103,9 @@ def user_login():
         if request.json is not None and bool(request.json):
             data = request.json
 
-        user_data = db.user.find_one({"email": data.get("email")})
+        email_lower = data.get("email", "").lower()
+        #Find the user based on the email
+        user_data = db.user.find_one({"email": email_lower})
         
         if user_data and bcrypt.check_password_hash(user_data['password'], data['password']):
             session['user_type'] = 'user'
@@ -90,7 +115,7 @@ def user_login():
             return jsonify({"error": "Invalid credentials"}), 401
 
 
-@app.route('/user/profile', methods = ['GET', 'POST'])
+@app.route('/api/user/profile', methods = ['GET', 'PUT'])
 @login_required
 def user_profile():
     """
@@ -111,7 +136,7 @@ def user_profile():
         else:
             return jsonify({"error": "Job Seeker not found"}), 404
         
-    elif request.method == 'POST':
+    elif request.method == 'PUT':
         """
         requst body format:
 
@@ -132,7 +157,7 @@ def user_profile():
         if existing_user_data:
             # Update the existing user data with the new data
             for key,value in data.items():
-                if key!= 'password' and key in existing_user_data:
+                if key!= 'password':
                     existing_user_data[key] = value
             
             # Update the user data in the database
@@ -145,7 +170,7 @@ def user_profile():
             return jsonify({"error": "Job Seeker not found"}), 404
         
 
-@app.route('/user/updatepassword', methods = ['POST'])
+@app.route('/api/user/updatepassword', methods = ['PUT'])
 @login_required
 def update_password():
     """
@@ -203,8 +228,10 @@ def update_password():
         return jsonify({"error": "An error occurred while updating password. Please try again later"}), 500
 
 
+"""
 ##optimize the search route later
-@app.route('/user/searchjobs', methods = ['GET'])
+"""
+@app.route('/api/user/searchjobs', methods = ['GET'])
 @login_required
 def search_jobs():
     """
@@ -225,26 +252,39 @@ def search_jobs():
 
     # If a keyword is provided, search for jobs containing that keyword
     if keyword:
-        jobs_cursor = db.jobs.find({"$text": {"$search": keyword}}).skip((page-1)*limit(limit))
+        jobs_cursor = db.jobs.find({"$text": {"$search": keyword}}).skip((page-1)*limit).limit(limit)
+        total_jobs = db.jobs.count_documents({"$text": {"$search": keyword}})
+
     # Otherwise, return all jobs sorted by ID
     else: 
-        jobs_cursor = db.jobs.find().sort([("_id", 1)]).skip((page-1)*limit(limit))
-    
-    total_jobs = jobs_cursor.count()
+        jobs_cursor = db.jobs.find().sort([("_id", 1)]).skip((page-1)*limit).limit(limit)
+        total_jobs = db.jobs.count_documents({})
+
 
     # Convert the cursor to a list of jobs
-    job_list = [job for job in jobs_cursor]
+    job_data_list = []
+    for job in jobs_cursor:
+        job_data = {
+            "req_id" : job.get("req_id"),
+            "company_name": job.get('company_name'),
+            "job_title" : job.get("job_title"),
+            "job_description" : job.get("job_description"),
+            "job_requirements" : job.get("job_requirements")
+        }
+        job_data_list.append(job_data)
+
+    print(job_data_list)
 
     # Return the results as a JSON object
     return jsonify({
         "total": total_jobs,
         "page": page,
         "limit": limit,
-        "data": job_list
+        "data": job_data_list
     })
 
 
-@app.route('/user/applyjobs/<job_id>', methods = ['POST'])
+@app.route('/api/user/applyjobs/<job_id>', methods = ['POST'])
 @login_required
 def apply_jobs(job_id):
     """
@@ -270,7 +310,7 @@ def apply_jobs(job_id):
     # Create a new application in the database
     application = {
         "user_id": ObjectId(user_id),
-        "job_id": job_id,
+        "job_id": ObjectId(job_id),
         "applied_on": datetime.datetime.utcnow(),
         "status" : "applied"
     }
@@ -279,7 +319,7 @@ def apply_jobs(job_id):
     return jsonify({"message": "Successfully applied for the job!"})
 
 
-@app.route('/user/appliedjobs', methods = ['GET'])
+@app.route('/api/user/appliedjobs', methods = ['GET'])
 @login_required
 def applied_jobs():
     """
@@ -287,23 +327,25 @@ def applied_jobs():
     """
     # Fetch all the applications of the current user
     try:
-        applications = db.applications.find({'user_id' : ObjectId(current_user._id) })
-
+        application_count = db.applications.count_documents({'user_id': ObjectId(current_user._id)})
         # If no applications found, return 404 error
-        if applications.count() == 0:
+        if application_count == 0:
             return jsonify({"message": "No jobs found"}), 404
         
+        applications = db.applications.find({'user_id' : ObjectId(current_user._id) })
         # Create a list of jobs applied by the user
         job_list =[]
         for application in applications:
-            job = db.jobs.find_one('_id', ObjectId(application['job_id']))
+            job = db.jobs.find_one({'_id': ObjectId(application['job_id'])})
             if job:
                 job_data = {
                     "req_id": job.get("req_id"),
                     "company_name": job.get('company_name'),
                     "job_title": job.get("job_title"),
                     "job_description": job.get("job_description"),
-                    "job_requirements": job.get("job_requirements")
+                    "job_requirements": job.get("job_requirements"),
+                    "applied_on": application.get("applied_on"),
+                    "status": application.get("status")
                 }
                 job_list.append(job_data)
         # Return the list of jobs applied by the user
