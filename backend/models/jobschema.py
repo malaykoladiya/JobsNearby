@@ -1,0 +1,21 @@
+from marshmallow import Schema, fields, pre_load, validate, ValidationError
+from datetime import datetime
+class JobPostSchema(Schema):
+    reqId = fields.Str(required=True, validate=validate.Length(min=1))
+    jobTitle = fields.Str(required=True, validate=validate.Length(min=1))
+    jobCategory = fields.Str(required=True)
+    employmentType = fields.Str(required=True)
+    noOfopening = fields.Int(required=True)
+    jobAdress = fields.Str(required=True)
+    jobCity = fields.Str(required=True)
+    jobState = fields.Str(required=True)
+    jobZip = fields.Str(required=True)
+    jobDescription = fields.Str(required=True)
+    jobQualifications = fields.Str(required=True)
+    jobSkills = fields.Str(required=True)
+    jobSalary = fields.Str(required=True)
+    companyName = fields.Str(required=True)
+    companyDescription = fields.Str(required=True)
+    companyIndustry = fields.Str(required=True)
+    startDate = fields.Date(required=True)
+    appDeadline = fields.Date(required=True)

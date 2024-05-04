@@ -1,68 +1,72 @@
 from flask import Flask, request, jsonify, session
 from app import app
-from models.user import User
+from models.jobSeeker_model import JobSeeker
 from flask_login import logout_user, login_required, login_user, current_user
 from app import bcrypt
 from app import db
 import pymongo
-import datetime
-from bson import ObjectId
+from datetime import datetime, timezone
+from bson import ObjectId, json_util
 import traceback
 from utils.utils import validate_password, is_valid_email
+import logging
 
-
-"""
-need to make changes in signup route
-
-        1. when singing up check first if the passwrod format is valid, then check for correct/incorrect password
-
-"""
-@app.route('/api/user/signup', methods = ['POST'])
+@app.route('/api/user/register', methods = ['POST'])
 def user_signup():
     """
     This function handles the user signup process.
     It accepts a POST request with the following JSON data:
-    {
-        "first_name": "user first name",
-        "last_name": "user last name",
-        "email": "user email",
-        "user_name": "user_name",
-        "password": "user password"
-    }
+
     It then generates a password hash using bcrypt and inserts the user data into the database.
     If the email is already in use, it returns a 400 error.
     If the signup is successful, it logs in the user and returns a 200 response with a success message.
+
+     Request body format:
+        {
+            jobSeekerEmail: ""
+            jobSeekerFirstName: ""
+            jobSeekerLastName: ""
+            jobSeekerPassword: ""
+        }
     """
-    if request.method == 'POST':
-        if request.json is not None and bool(request.json):
-            data = request.json
-        else:
-            return jsonify({"error": "invalid request format"}), 400
-        
-        data["email"] = data["email"].lower()
-
+    if request.json is not None and bool(request.json):
+        data = request.json
+    else:
+        return jsonify({"error": "invalid request format"}), 400
     
-        #validate email and password
-        if not is_valid_email(data.get("email", "")):
-            return jsonify({"error": "Invalid email format"}), 400
-        if not validate_password(data.get("password", "")):
-            return jsonify({"error": "Invalid password format or weak password"}), 400
-        
-        passhash = bcrypt.generate_password_hash(data["password"]).decode('utf-8')
-        data.pop("password")
-        data["password"] = passhash
-        
-        try:
-            db.user.insert_one(data)
-            user = User(data)
-            session['user_type'] = 'user'
-            login_user(user)
-            return jsonify({"message": "Job Seeker Signup Successful!"}), 200
-        except pymongo.errors.DuplicateKeyError:
-            return jsonify({"error": "Email already in use"}), 400
+    data["jobSeekerEmail"] = data["jobSeekerEmail"].lower()
 
 
-@app.route('/api/user/logout')
+    #validate email and password
+    if not is_valid_email(data.get("jobSeekerEmail", "")):
+        return jsonify({"error": "Invalid email format"}), 400
+    if not validate_password(data.get("jobSeekerPassword", "")):
+        return jsonify({"error": "Invalid password format or weak password"}), 400
+    
+    # Hash the password before creating the JobSeeker object
+    hashed_password = bcrypt.generate_password_hash(data["jobSeekerPassword"]).decode('utf-8')
+    data['jobSeekerPassword'] = hashed_password
+
+    # Create a JobSeeker object from the data
+    job_seeker = JobSeeker(data)
+    
+    try:
+        job_seeker.save_to_db(db)
+        return jsonify({"message": "Job Seeker Signup Successful! Please log in to continue."}), 200
+    except pymongo.errors.DuplicateKeyError:
+        return jsonify({"error": "Email already in use"}), 400
+    except pymongo.errors.OperationFailure as e:
+        # General MongoDB operation failure, which could be due to configuration issues, etc.
+        return jsonify({"error": f"Database operation failed: {str(e)}"}), 500
+    except pymongo.errors.NetworkTimeout:
+        # Handle network-related issues, such as timeouts
+        return jsonify({"error": "Database operation timed out"}), 503
+    except Exception as e:
+        # A catch-all for any other unexpected errors
+        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+
+
+@app.route('/api/user/logout', methods = ['POST'])
 @login_required
 def user_logout():
     """
@@ -71,16 +75,13 @@ def user_logout():
     Returns:
         A JSON response with a success message.
     """
-    logout_user()
-    session.clear()
-    return jsonify({"message": "Successfully Logout"})
-    # return redirect('/user/login')
+    if current_user.is_authenticated:
+        logout_user()
+        return jsonify({"message": "Successfully Logout"})
+    else:
+        return jsonify({"error": "Not Logged In"}), 401
 
-"""
-need to make changes in login route
-        1. validate email. when getting email for request.json check first for if it is valid or not than check if the user exisit in the db
-        2. when logging in check first if the passwrod format is valid, then check for correct/incorrect password
-"""
+
 @app.route('/api/user/login', methods=['POST'])
 def user_login():
     """
@@ -91,100 +92,204 @@ def user_login():
 
     Request Body Format:
     {
-        "email": "user email",
-        "password": "user password"
+        "jobSeekerEmail": "user email",
+        "jobSeekerPassword": "user password"
     }
 
     Returns:
     - If the login is successful, returns a success message with status code 200.
     - If the credentials are invalid, returns an error message with status code 401.
     """
-    if request.method == 'POST':
-        if request.json is not None and bool(request.json):
-            data = request.json
+    if request.json is not None and bool(request.json):
+        data = request.json
+    else:
+        return jsonify({"error": "Invalid request format"}), 400
 
-        email_lower = data.get("email", "").lower()
-        #Find the user based on the email
-        user_data = db.user.find_one({"email": email_lower})
+    email = data.get("jobSeekerEmail", "").lower()
+    password = data.get("jobSeekerPassword", "")
+
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+    
+    #Find the user based on the email
+    user_data = db.user.find_one({"jobSeekerEmail": email})
+
+    if not user_data:
+        return jsonify({"error": "Invalid credentials"}), 401
+    
+    if user_data and bcrypt.check_password_hash(user_data['jobSeekerPassword'], password):
+        job_seeker = JobSeeker(user_data)
+        login_user(job_seeker)
+        # login_user(job_seeker, remember=True)
+                
+        session['user_type'] = 'jobSeeker'
+
+        return jsonify({
+            'authenticated': True,
+            'message': 'jobSeeker Login successful',
+            'userType': session.get('user_type')
+        }), 200
+    else:    
+        return jsonify({
+            'error': "Invalid credentials",
+            'authenticated': False,
+        }), 401
+
+
+# @app.route('/api/user/current', methods=['GET'])
+# @login_required
+# def current_user_info():
+#     """
+#     This endpoint returns the current logged-in user's information.
+
+#     Returns:
+#         A JSON response containing the current user's email and name.
+#     """ 
+#     try:
         
-        if user_data and bcrypt.check_password_hash(user_data['password'], data['password']):
-            session['user_type'] = 'user'
-            login_user(User(user_data))
-            return jsonify({"message": "Job Seeker Login Successful"}), 200
-        else:    
-            return jsonify({"error": "Invalid credentials"}), 401
+#         user_id = current_user.get_id()        
+#         if not user_id:
+#             return jsonify({"error": "Unauthorized"})
+        
+
+        
+#         # Find the current user in the database
+#         user_data = db.user.find_one({'_id': ObjectId(user_id)})
+#         return jsonify({
+#             "_id": str(user_data["_id"]),
+#             "email": user_data["email"]
+#         })
+        
+#     except Exception as e:
+#         print("Unexpected error: ", e)
+#         traceback.print_exc()
+#         return jsonify({"error": "An error occurred while fetching user info. Please try again later"}), 500
 
 
-@app.route('/api/user/profile', methods = ['GET', 'PUT'])
+
+@app.route('/api/user/profile', methods = ['GET'])
 @login_required
-def user_profile():
+def get_user_profile():
     """
-    This function handles GET and POST requests for user profile.
+    This function handles GET requests for user profile.
     GET request returns the user profile data.
-    POST request updates the user profile data.
 
     :return: JSON response with user profile data or error message.
     """
-    if request.method == "GET":    
-        # Get user data from the database
-        user_data = db.user.find_one({'_id': ObjectId(current_user._id)})
-        if user_data:
-            # Remove sensitive information from the user data
-            user_data.pop('password', None)
-            user_data.pop('_id', None)
-            return jsonify(user_data), 200
-        else:
+       
+    # Get user data from the database
+    user_data = db.user.find_one({'_id': ObjectId(current_user._id)})
+    if user_data:
+        # Remove sensitive information from the user data
+        user_data.pop('jobSeekerPassword', None)
+        user_data.pop('_id', None)
+        return jsonify(user_data), 200
+    else:
+        return jsonify({"error": "Job Seeker not found"}), 404
+
+@app.route('/api/user/profile', methods=['PUT'])
+@login_required
+def update_user_profile():  
+        
+    """
+    This function handles PUT requests for user profile.
+    PUT request updates the user profile data.
+
+    :return: JSON response with user profile data or error message.
+
+    request body format:
+
+    {
+        "first_name": "user first name",
+        "lasst_name": "user last name",
+        "email": "user email",
+        "user_name": "user_name
+        #add other fields
+    }
+    """
+    if request.json is not None and bool(request.json):
+        data = request.json
+
+    # Get existing user data from the database
+    # existing_user_data = db.user.find_one({'_id': ObjectId(current_user._id)})
+
+    data.pop('jobSeekerPassword', None)
+    data.pop('_id', None)
+
+    try:
+        # Update the document in MongoDB
+        result = db.user.update_one(
+            {'_id': ObjectId(current_user._id)},
+            {'$set': data}
+        )
+
+        if result.matched_count == 0:
             return jsonify({"error": "Job Seeker not found"}), 404
         
-    elif request.method == 'PUT':
-        """
-        requst body format:
-
-        {
-            "first_name": "user first name",
-            "lasst_name": "user last name",
-            "email": "user email",
-            "user_name": "user_name
-            #add other fields
-        }
-        """
-        if request.json is not None and bool(request.json):
-            data = request.json
-
-        # Get existing user data from the database
-        existing_user_data = db.user.find_one({'_id': ObjectId(current_user._id)})
-
-        if existing_user_data:
-            # Update the existing user data with the new data
-            for key,value in data.items():
-                if key!= 'password':
-                    existing_user_data[key] = value
-            
-            # Update the user data in the database
-            db.user.update_one(
-                {'_id': ObjectId(current_user._id)},
-                {'$set': existing_user_data}
-            )
-            return jsonify({"message": "Job Seeker Profile updated seccessfully"})
-        else:
-            return jsonify({"error": "Job Seeker not found"}), 404
         
+        # Return the updated user data
+        updated_user_data = db.user.find_one({'_id': ObjectId(current_user._id)}, {'jobSeekerPassword': 0})
+        updated_user_data['_id'] = str(updated_user_data['_id'])
+        
+        response_data = {'success': True, 'data': updated_user_data}
+        
+        return jsonify(response_data), 200
+    except pymongo.errors.DuplicateKeyError:
+        return jsonify({"error": "Email already exists"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/user/profile/workexperience', methods=['POST'])
+@login_required
+def user_add_work_experience():
+    """
+    Handles POST request to add work experience to the user's profile.
+
+    :return: JSON response with success message or error message.
+    """
+    user_id = current_user._id
+    work_experience_data = request.json
+
+    if not work_experience_data:
+        return jsonify({"error": "No data provided"}), 400
+
+    # Optional: Validate work_experience_data here
+
+    try:
+        # Add the new work experience to the 'jobSeekerWorkExperience' array in the user's document
+        db.user.update_one(
+            {'_id': ObjectId(user_id)},
+            {'$push': {'jobSeekerWorkExperience': work_experience_data}}
+        )
+        return jsonify({"message": "Work experience added successfully"}), 200
+
+    except Exception as e:
+        # Log the exception for debugging
+        logging.error(f"An error occurred while updating work experience: {e}")
+        # Return an error response
+        return jsonify({"error": "Unable to update the profile at this time"}), 500
+
+    
+
+
 
 @app.route('/api/user/updatepassword', methods = ['PUT'])
 @login_required
-def update_password():
+def update_user_password():
     """
     This function updates the password of the current user.
 
     Request body format:
     {
-        "old_password": "old user password"
-        "new_password": "new user password"
+        "jobSeekerEmail": "user email",  # Required
+        "jobseekerOldPassword": "old user password",  # Required
+        "jobSeekerNewPassword": "new user password",  # Required
     }
 
     Returns:
     - If the request is invalid, returns a JSON object with an error message and a 400 status code.
-    - If the old or new password is missing, returns a JSON object with an error message and a 400 status code.
     - If the old password is incorrect, returns a JSON object with an error message and a 401 status code.
     - If the user is not found, returns a JSON object with an error message and a 404 status code.
     - If the password is updated successfully, returns a JSON object with a success message and a 200 status code.
@@ -194,38 +299,42 @@ def update_password():
         # Check if the request is valid
         if request.json is None or not bool(request.json):
             return jsonify({"error": "Bad Request"}), 400
-        
-        # Get the old and new passwords from the request body
+
+        # Get the email, old and new passwords from the request body
         data = request.json
-        old_password = data.get("old_password")
-        new_password = data.get("new_password")
-        
-        # Check if both old and new passwords are present
-        if not old_password or not new_password:
-            return jsonify({"error": "Both old and new password are required"}), 400
-        
-        # Find the current user in the database
-        existing_user_data = db.user.find_one({'_id': ObjectId(current_user._id)})
-        
+        email = data.get("jobSeekerEmail")
+        old_password = data.get("jobSeekerOldPassword")
+        new_password = data.get("jobSeekerNewPassword")
+
+        # Check if the email, old and new passwords are provided
+        if not email or not old_password or not new_password:
+            return jsonify({"error": "Email, old and new passwords are required"}), 400
+
+        # Find the user in the database by email
+        existing_user_data = db.user.find_one({'jobSeekerEmail': email})
+
         if existing_user_data:
             # Check if the old password is correct
-            if not bcrypt.check_password_hash(existing_user_data['password'], old_password):
+            if not bcrypt.check_password_hash(existing_user_data['jobSeekerPassword'], old_password):
                 return jsonify({"error": "Old password is incorrect"}), 401
-            
-            # Generate a new password hash and update the user's password in the database
+
+            # Generate a new password hash
             new_pass_hash = bcrypt.generate_password_hash(new_password, rounds=12).decode('utf-8')
+
+            # Update the user's password in the database
             db.user.update_one(
-                {'_id': ObjectId(current_user._id)},
-                {'$set': {'password': new_pass_hash}}
+                {'jobSeekerEmail': email},
+                {'$set': {'jobSeekerPassword': new_pass_hash}}
             )
-            return jsonify({"message": "Password updated successfully"}), 200
+            return jsonify({"message": "User password updated successfully"}), 200
         else:
-            return jsonify({"error": "Job Seeker not found"}), 404
+            return jsonify({"error": "User not found"}), 404
     except pymongo.errors.PyMongoError as e:
         # Handle unexpected errors
         print("Unexpected error: ", e)
         traceback.print_exc()
-        return jsonify({"error": "An error occurred while updating password. Please try again later"}), 500
+        return jsonify({"error": "An error occurred while updating user password. Please try again later"}), 500
+
 
 
 """
@@ -246,77 +355,202 @@ def search_jobs():
         A JSON object containing the total number of jobs found, the current page number,
         the limit of jobs per page, and a list of jobs matching the search criteria.
     """
-    keyword = request.args.get('keyword')
+    keyword = request.args.get('debouncedKeyword')
+    location = request.args.get('location')
     page = int(request.args.get('page', 1))
-    limit = int(request.args.get('limit', 10))
+    limit = int(request.args.get('limit', 5))
 
     # If a keyword is provided, search for jobs containing that keyword
-    if keyword:
-        jobs_cursor = db.jobs.find({"$text": {"$search": keyword}}).skip((page-1)*limit).limit(limit)
-        total_jobs = db.jobs.count_documents({"$text": {"$search": keyword}})
+    # if keyword:
+    #     jobs_cursor = db.jobs.find({"$text": {"$search": keyword}}).skip((page-1)*limit).limit(limit)
+    #     total_jobs = db.jobs.count_documents({"$text": {"$search": keyword}})
 
     # Otherwise, return all jobs sorted by ID
-    else: 
-        jobs_cursor = db.jobs.find().sort([("_id", 1)]).skip((page-1)*limit).limit(limit)
-        total_jobs = db.jobs.count_documents({})
 
+    query = {}
+    if keyword:
+        query["$text"] = {"$search": keyword}
+
+    location_conditions = []
+    if location:  # This will now be true for any non-empty string including whitespace
+        # You can strip whitespace to ensure an empty space is not considered a location
+        location = location.strip()
+        if location:  # Ensure that location is not just whitespace
+            location_conditions = [
+                {"jobAddress": {"$regex": location, "$options": "i"}},
+                {"jobCity": {"$regex": location, "$options": "i"}},
+                {"jobState": {"$regex": location, "$options": "i"}},
+                {"jobZip": {"$regex": location, "$options": "i"}}
+            ]
+
+    if location_conditions:
+        if "keyword" in query:
+            # Both keyword and location provided
+            query = {"$and": [query, {"$or": location_conditions}]}
+        else:
+            # Only location provided
+            query["$or"] = location_conditions
+    
+    try:
+        jobs_cursor = db.jobs.find(query).sort([("createdAt", -1)]).skip((page - 1) * limit).limit(limit)
+        total_jobs = db.jobs.count_documents(query)
+        
+        has_more = (page * limit) < total_jobs
+
+    except pymongo.errors.OperationFailure as e:
+        # Handle the OperationFailure exception properly
+        return jsonify({"error": str(e)}), 500
 
     # Convert the cursor to a list of jobs
     job_data_list = []
     for job in jobs_cursor:
+        # Check if the user has applied for this job
+        application = db.applications.find_one({
+            "user_id": ObjectId(current_user._id),  # Assuming this is the logged in user's ID
+            "job_id": job.get('_id')
+        })
+
+        applied_status = application.get('applied_status') if application else False
+
         job_data = {
-            "req_id" : job.get("req_id"),
-            "company_name": job.get('company_name'),
-            "job_title" : job.get("job_title"),
-            "job_description" : job.get("job_description"),
-            "job_requirements" : job.get("job_requirements")
+            "_id": str(job.get('_id')),
+            "reqId": job.get('reqId'),
+            "jobTitle": job.get('jobTitle'),
+            "jobCategory": job.get('jobCategory'),
+            "employmentType": job.get('employmentType'),
+            "noOfopening": job.get('noOfopening'),
+            "jobAdress": job.get('jobAdress'),
+            "jobCity": job.get('jobCity'),
+            "jobState": job.get('jobState'),
+            "jobZip": job.get('jobZip'),
+            "jobDescription": job.get('jobDescription'),
+            "jobQualifications": job.get('jobQualifications'),
+            "jobSkills": job.get('jobSkills'),
+            "jobSalary": job.get('jobSalary'),
+            "companyName": job.get('companyName'),
+            "companyDescription": job.get('companyDescription'),
+            "companyIndustry": job.get('companyIndustry'),
+            "startDate": job.get("startDate"),
+            "appDeadline": job.get("appDeadline"),
+            "createdAt": job.get('createdAt'),
+            "applied_status": applied_status
         }
         job_data_list.append(job_data)
 
-    print(job_data_list)
 
     # Return the results as a JSON object
     return jsonify({
         "total": total_jobs,
         "page": page,
         "limit": limit,
-        "data": job_data_list
+        "has_more": has_more,
+        "search_job_data": job_data_list
     })
 
 
-@app.route('/api/user/applyjobs/<job_id>', methods = ['POST'])
+@app.route('/api/user/job/<job_id>', methods=['GET'])
 @login_required
-def apply_jobs(job_id):
+def get_single_job(job_id):
     """
-    Apply for a job by creating a new application in the database.
+    Fetch a single job by its ID.
 
     Args:
-        job_id (str): The ID of the job to apply for.
+        job_id (str): The ID of the job to fetch.
 
     Returns:
-        A JSON response indicating whether the application was successful or not.
+        A JSON response containing the job data if found, otherwise an error message.
     """
+    try:
+        # Find the job in the database using the job_id
+        job = db.jobs.find_one({'_id': ObjectId(job_id)})
+        if job:
+            # Convert the job to a JSON serializable format
+            job_data = {
+                "_id": str(job.get('_id')),
+                "reqId": job.get('reqId'),
+                "companyName": job.get('companyName'),
+                "jobTitle": job.get('jobTitle'),
+                "jobCity": job.get('jobCity'),
+                "jobState": job.get('jobState'),
+                "jobAddress": job.get('jobAdress'),  # Make sure the key matches the DB field
+                "jobSalary": job.get('jobSalary'),
+                "employmentType": job.get('employmentType'),
+                "noOfopening": job.get('noOfopening'),
+                "jobDescription": job.get('jobDescription'),
+                "jobSkills": job.get('jobSkills'),
+                "companyDescription": job.get('companyDescription'),
+                "companyIndustry": job.get('companyIndustry'),
+                "jobQualifications": job.get('jobQualifications'),
+                "startDate": job.get('startDate').isoformat() if job.get('startDate') else None,
+                "appDeadline": job.get('appDeadline').isoformat() if job.get('appDeadline') else None,
+                "createdAt": job.get('createdAt').isoformat() if job.get('createdAt') else None,
+            }
+            # Get the current user's ID
+            user_id = current_user.get_id()
+
+            # Find an application by the current user for this job
+            application = db.applications.find_one({
+                'user_id': ObjectId(user_id),
+                'job_id': ObjectId(job_id)
+            })
+            # Add the applied status to the job data, true if an application exists
+            job_data['applied_status'] = bool(application and application.get('applied_status'))
+
+
+            return jsonify(job_data), 200
+        else:
+            return jsonify({"error": "Job not found"}), 404
+    except pymongo.errors.PyMongoError as e:
+        # Log the exception for debugging purposes
+        logging.error(f"An error occurred while fetching job: {e}")
+        return jsonify({"error": "An error occurred while fetching the job"}), 500
+
+
+@app.route('/api/user/applyjobs/<job_id>', methods=['POST'])
+@login_required
+def apply_jobs(job_id):
     user_id = current_user._id
+    try:
+        # Check for an existing application
+        existing_application = db.applications.find_one({
+            "user_id": ObjectId(user_id),
+            "job_id": ObjectId(job_id)
+        })
 
-    # Check if the user has already applied for this job
-    existing_application = db.applications.find_one({
-        "user_id": ObjectId(user_id),
-        "job_id": ObjectId(job_id)
-    })
+        if existing_application:
+            logging.info(f"User {user_id} has already applied for job {job_id}.")
+            # You can return the existing application status here if needed
+            return jsonify({
+                "message": "You have already applied for this job!",
+                "applied_status": True
+            }), 400
 
-    if existing_application:
-        return jsonify({"message": "You have already applied for this job!"}), 400
+        # Insert new application
+        application = {
+            "user_id": ObjectId(user_id),
+            "job_id": ObjectId(job_id),
+            "applied_on": datetime.now(timezone.utc),
+            "applied_status": True,  # User has applied
+            "under_review_status": False,  # Initially not under review
+            "rejected_status": False,  # Initially not rejected
+            "accepted_status": False
+        }
+        result = db.applications.insert_one(application)
+        application_id = result.inserted_id
+        logging.info(f"User {user_id} applied for job {job_id}. Application ID: {application_id}")
 
-    # Create a new application in the database
-    application = {
-        "user_id": ObjectId(user_id),
-        "job_id": ObjectId(job_id),
-        "applied_on": datetime.datetime.utcnow(),
-        "status" : "applied"
-    }
-    db.applications.insert_one(application)
+        # Returning applied status to reflect the new state
+        return jsonify({
+            "message": "Successfully applied for the job!",
+            "applied_status": application["applied_status"]
+        }), 200
+    except Exception as e:
+        logging.error(f"Error applying for job {job_id} by user {user_id}: {str(e)}")
+        return jsonify({
+            "error": "An error occurred while applying for the job",
+            "applied_status": False
+        }), 500
 
-    return jsonify({"message": "Successfully applied for the job!"})
 
 
 @app.route('/api/user/appliedjobs', methods = ['GET'])
@@ -327,30 +561,107 @@ def applied_jobs():
     """
     # Fetch all the applications of the current user
     try:
-        application_count = db.applications.count_documents({'user_id': ObjectId(current_user._id)})
-        # If no applications found, return 404 error
-        if application_count == 0:
-            return jsonify({"message": "No jobs found"}), 404
-        
-        applications = db.applications.find({'user_id' : ObjectId(current_user._id) })
-        # Create a list of jobs applied by the user
-        job_list =[]
+        applications = db.applications.find({'user_id': ObjectId(current_user._id)})
+        job_list = []
+
         for application in applications:
-            job = db.jobs.find_one({'_id': ObjectId(application['job_id'])})
+            # Add the fields you want to retrieve in the projection parameter of find_one
+            job = db.jobs.find_one(
+                {'_id': ObjectId(application['job_id'])},
+                {
+                'reqId': 1, 'companyName': 1, 'jobTitle': 1, 'jobDescription': 1, 'jobSkills': 1,  'jobQualifications': 1,
+                'jobCategory': 1, 'employmentType': 1, 'noOfopening': 1, 'jobAdress': 1,
+                'jobCity': 1, 'jobState': 1, 'jobZip': 1, 'jobSalary': 1, 'companyDescription': 1, 'companyIndustry': 1,
+                'startDate': 1, 'appDeadline': 1, 'createdAt': 1, '_id': 1
+                # add other fields you want to include
+                }
+            )
             if job:
+                # Add the additional fields to the job_data dictionary
                 job_data = {
-                    "req_id": job.get("req_id"),
-                    "company_name": job.get('company_name'),
-                    "job_title": job.get("job_title"),
-                    "job_description": job.get("job_description"),
-                    "job_requirements": job.get("job_requirements"),
-                    "applied_on": application.get("applied_on"),
-                    "status": application.get("status")
+                   "_id": str(job['_id']),
+                    "reqId": job.get('reqId'),
+                    "jobTitle": job.get('jobTitle'),
+                    "jobCategory": job.get('jobCategory'),
+                    "employmentType": job.get('employmentType'),
+                    "noOfopening": job.get('noOfopening'),
+                    "jobAdress": job.get('jobAdress'),
+                    "jobCity": job.get('jobCity'),
+                    "jobState": job.get('jobState'),
+                    "jobZip": job.get('jobZip'),
+                    "jobDescription": job.get('jobDescription'),
+                    "jobQualifications": job.get('jobQualifications'),
+                    "jobSkills": job.get('jobSkills'),
+                    "jobSalary": job.get('jobSalary'),
+                    "companyName": job.get('companyName'),
+                    "companyDescription": job.get('companyDescription'),
+                    "companyIndustry": job.get('companyIndustry'),
+                    "startDate": job.get('startDate').isoformat() if job.get('startDate') else None,
+                    "appDeadline": job.get('appDeadline').isoformat() if job.get('appDeadline') else None,
+                    "createdAt": job.get('createdAt').isoformat() if job.get('createdAt') else None,
                 }
                 job_list.append(job_data)
-        # Return the list of jobs applied by the user
-        return jsonify({"jobs": job_list}), 200
-    except pymongo.errors.PyMongoError as e:
-        # If any error occurs, return 500 error
-        return jsonify({"error": "An error occured. Please try again later"}), 500
+            else:
+                print(f"Job {application['job_id']} not found")
 
+        return jsonify({"jobs_applied": job_list}), 200
+    except pymongo.errors.PyMongoError as e:
+        return jsonify({"error": f"An error occurred. Please try again later. {str(e)}"}), 500
+    
+
+@app.route('/api/user/saved-jobs', methods=['GET'])
+@login_required
+def get_saved_jobs():
+    user_id = current_user._id
+    logging.info(f"Fetching saved jobs for user ID: {user_id}")
+
+    try:
+        # Find the user document by _id
+        user = db.user.find_one({'_id': ObjectId(user_id)})
+        if user:
+            # Get the saved job IDs from the user document
+            saved_jobs_ids = [ObjectId(job_id) for job_id in user.get('jobSeekerSavedJobs', [])]
+            # Find all job documents whose _id is in the saved_jobs_ids list
+            saved_jobs_cursor = db.jobs.find({"_id": {"$in": saved_jobs_ids}})
+
+            saved_jobs = []
+            for job in saved_jobs_cursor:
+                # Check if the user has applied for this job
+                application = db.applications.find_one({
+                    "user_id": ObjectId(current_user._id),  # Assuming this is the logged in user's ID
+                    "job_id": job.get('_id')
+                })
+
+                applied_status = application.get('applied_status') if application else False
+
+                job_dict = {
+                    "_id": str(job['_id']),
+                    "reqId": job.get('reqId'),
+                    "jobTitle": job.get('jobTitle'),
+                    "jobCategory": job.get('jobCategory'),
+                    "employmentType": job.get('employmentType'),
+                    "noOfopening": job.get('noOfopening'),
+                    "jobAdress": job.get('jobAdress'),
+                    "jobCity": job.get('jobCity'),
+                    "jobState": job.get('jobState'),
+                    "jobZip": job.get('jobZip'),
+                    "jobDescription": job.get('jobDescription'),
+                    "jobQualifications": job.get('jobQualifications'),
+                    "jobSkills": job.get('jobSkills'),
+                    "jobSalary": job.get('jobSalary'),
+                    "companyName": job.get('companyName'),
+                    "companyDescription": job.get('companyDescription'),
+                    "companyIndustry": job.get('companyIndustry'),
+                    "startDate": job.get('startDate').isoformat() if job.get('startDate') else None,
+                    "appDeadline": job.get('appDeadline').isoformat() if job.get('appDeadline') else None,
+                    "createdAt": job.get('createdAt').isoformat() if job.get('createdAt') else None,
+                    "applied_status": applied_status
+                }
+                saved_jobs.append(job_dict)
+
+            return jsonify(saved_jobs), 200
+        else:
+            return jsonify({"error": "User not found"}), 404
+    except Exception as e:
+        logging.error(f"Failed to fetch saved jobs: {e}", exc_info=True)
+        return jsonify({"error": "An error occurred while fetching the saved jobs"}), 500
