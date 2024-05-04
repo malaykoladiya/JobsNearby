@@ -173,3 +173,18 @@ def dashboard():
     elif user_type == 'employer':
         posted_jobs = db.jobs.find()
         return jsonify(posted_jobs = [job for job in posted_jobs]), 200
+
+
+# Health Check Endpoint
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """
+    Endpoint to check the health of the Flask application.
+    Returns a simple response indicating the health status.
+    """
+    try:
+        # Check if MongoDB connection is active
+        client.server_info()
+        return jsonify({"status": "OK"}), 200
+    except Exception as e:
+        return jsonify({"status": "Error", "message": str(e)}), 500
