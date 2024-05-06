@@ -11,20 +11,20 @@ from models.config import Config
 from flask_cors import CORS
 import logging
 import os
-
+import awsgi 
 
 """
 Making Log directory and logging data
 """
 # Ensure the directory exists
-LOG_DIR = 'logs'
+LOG_DIR = '/tmp/logs'
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
 
 # Set up logging
 log_file_path = os.path.join(LOG_DIR, 'app.log')
-handlers = [logging.FileHandler(filename='logs/app.log'), logging.StreamHandler()]
-logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s', handlers=handlers)
+handlers = [logging.FileHandler(filename=log_file_path), logging.StreamHandler()]
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s', handlers=handlers)
 
 
 """
@@ -176,15 +176,24 @@ def dashboard():
 
 
 # Health Check Endpoint
-@app.route('/api/health', methods=['GET'])
+@app.route('/', methods=['GET'])
 def health_check():
     """
     Endpoint to check the health of the Flask application.
     Returns a simple response indicating the health status.
     """
-    try:
-        # Check if MongoDB connection is active
-        client.server_info()
-        return jsonify({"status": "OK"}), 200
-    except Exception as e:
-        return jsonify({"status": "Error", "message": str(e)}), 500
+    return jsonify({"status": "OK"}), 200
+ 
+    
+
+def lambda_handler(event, context):
+    # Pass Lambda event and context to awsgi.response() function
+    # This function adapts the Lambda event into a WSGI environment dictionary
+    # and invokes the Flask application (app) to handle the request
+    print("Received event:", event)
+    return awsgi.response(app, event, context)
+    
+
+# if __name__ == '__main__':
+#     # Run the Flask application on port 8000
+#     app.run(host='0.0.0.0', port=8000)
