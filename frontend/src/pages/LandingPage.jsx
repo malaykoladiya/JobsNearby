@@ -25,9 +25,10 @@ const LandingPage = () => {
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-br from-purple-500 to bg-indigo-500 p-4">
       <div className="bg-white bg-opacity-10 rounded-lg shadow-lg p-8 max-w-md w-full text-center">
-        <h1 className="text-4xl font-bold mb-4">Find Your Dream Job</h1>
-        <p className="text-lg mb-8">
-          Connect with top companies and find the perfect match for your skills.
+        <h1 className="text-4xl font-bold mb-5">Explore Opportunities</h1>
+        <p className="text-lg font-medium mb-8">
+          Connect with local businesses and job seekers in your
+          community—discover the right opportunities or talent near you.
         </p>
 
         <div className="flex justify-center gap-4 mb-8">

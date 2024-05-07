@@ -4,9 +4,13 @@ import { useAuth } from "../context/AuthContext";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { toast } from "react-hot-toast";
+import Spinner from "../components/Spinner/Spinner";
 
 const Login = () => {
   const { login, userType } = useAuth(); // Get userType from AuthContext
+
+  const [loading, setLoading] = useState(false); // State to manage loading
+
   const navigate = useNavigate();
 
   const getPrefix = (userType) => {
@@ -31,6 +35,7 @@ const Login = () => {
     },
     validationSchema: validationSchema,
     onSubmit: async (values) => {
+      setLoading(true);
       const credentials = {
         [`${getPrefix(userType)}Email`]: values[`${getPrefix(userType)}Email`],
         [`${getPrefix(userType)}Password`]:
@@ -38,20 +43,21 @@ const Login = () => {
       };
 
       try {
-        const response = await login(userType, credentials);
-        if (response.status === 200) {
-          toast.success("Signed in successfully");
-          navigate(`/${userType}/home`);
-        } else {
-          toast.error("Failed to sign in");
-        }
+        await login(userType, credentials);
+        toast.success("Signed in successfully");
+        navigate(`/${userType}/home`);
       } catch (err) {
         toast.error(
           "Login failed. Please check your credentials and try again."
         );
+        setLoading(false);
       }
     },
   });
+
+  if (loading) {
+    return <Spinner />;
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 py-4">

@@ -3,19 +3,13 @@ import { useAuth } from "../../context/AuthContext";
 import ProfilePersonalInfoCard from "../../components/ProfileManagementComponents/ProfilePersonalInfoCard";
 import ProfileWorkExCard from "../../components/ProfileManagementComponents/ProfileWorkExCard";
 import ProfileEduCard from "../../components/ProfileManagementComponents/ProfileEduCard";
+import Spinner from "../../components/Spinner/Spinner";
 
 const EmployerProfile = () => {
   const { profile, loading } = useAuth(); // Use profile and loading from AuthContext
 
   if (loading || !profile) {
-    return (
-      <div className="min-h-screen flex justify-center items-center">
-        <div className="text-center">
-          <div className="text-gray-600 text-xl mb-4">Loading...</div>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        </div>
-      </div>
-    );
+    return <Spinner />; // Use Spinner when loading or profile is not available
   }
 
   return (

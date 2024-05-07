@@ -1,12 +1,14 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { toast } from "react-hot-toast";
+import Spinner from "../components/Spinner/Spinner";
 
 const SignUpForm = () => {
   const { register, login, userType } = useAuth();
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const getPrefix = (userType) => {
@@ -47,6 +49,7 @@ const SignUpForm = () => {
     },
     validationSchema: validationSchema,
     onSubmit: async (values) => {
+      setLoading(true);
       const signUpData = {
         [`${getPrefix(userType)}FirstName`]:
           values[`${getPrefix(userType)}FirstName`],
@@ -70,10 +73,18 @@ const SignUpForm = () => {
 
         navigate(`/${userType}/home`, { state: { isNewUser: true } });
       } catch (err) {
-        toast.error("Registration failed. Please try again.");
+        toast.error(
+          err.response.data.error || "Registration failed. Please try again."
+        );
+      } finally {
+        setLoading(false); // Stop loading regardless of the outcome
       }
     },
   });
+
+  if (loading) {
+    return <Spinner />;
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 py-4">

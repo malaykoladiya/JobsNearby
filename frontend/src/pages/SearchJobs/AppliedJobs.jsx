@@ -1,13 +1,18 @@
 import React from "react";
 import { useJobSearch } from "../../context/JobSearchContext";
 import JobCards from "../../components/JobSearchComponents/JobCards";
+import Spinner from "../../components/Spinner/Spinner";
 
 const AppliedJobs = () => {
-  const { appliedJobs, setSelectedJob } = useJobSearch();
+  const { appliedJobs, setSelectedJob, isLoading } = useJobSearch();
 
   const handleSelectJob = (job) => {
     setSelectedJob(job);
   };
+
+  if (isLoading) {
+    return <Spinner />;
+  }
 
   return (
     <div className="flex flex-col items-center w-full max-w-6xl mx-auto p-5 font-sans overflow-hidden">

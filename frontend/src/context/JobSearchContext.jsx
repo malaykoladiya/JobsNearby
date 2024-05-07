@@ -96,6 +96,10 @@ export const JobSearchProvider = ({ children }) => {
 
   console.log("jobs in context", jobs);
 
+  const addAppliedJob = useCallback((newJob) => {
+    setAppliedJobs((prevJobs) => [...prevJobs, newJob]);
+  }, []);
+
   // Function to fetch applied jobs
   const fetchAppliedJobs = useCallback(async () => {
     try {
@@ -115,7 +119,7 @@ export const JobSearchProvider = ({ children }) => {
   const fetchSavedJobs = useCallback(async () => {
     try {
       const response = await httpClient.get(API_USER_SAVED_JOBS);
-      console.log("saved jobs in context fetchSavedJobs", response.data);
+      // console.log("saved jobs in context fetchSavedJobs", response.data);
       setSavedJobData(response.data);
       setSavedJobIDs(new Set(response.data.map((job) => job._id)));
     } catch (error) {
@@ -129,7 +133,7 @@ export const JobSearchProvider = ({ children }) => {
     }
   }, [profile, fetchSavedJobs]);
 
-  console.log("save jobs in searchcontext", savedJobIDs);
+  // console.log("save jobs in searchcontext", savedJobIDs);
 
   const toggleSaveJob = async (jobId) => {
     const newSavedJobs = new Set(savedJobIDs);
@@ -146,8 +150,8 @@ export const JobSearchProvider = ({ children }) => {
 
     try {
       const response = await updateProfile(userType, updatedProfileData);
-      console.log(response.data);
-      console.log("Profile updated successfully");
+      // console.log(response.data);
+      // console.log("Profile updated successfully");
       setSavedJobIDs(newSavedJobs);
     } catch (error) {
       console.error("Failed to update profile:", error);
@@ -176,6 +180,7 @@ export const JobSearchProvider = ({ children }) => {
     handleSelectJob,
     toggleSaveJob,
     fetchJobs,
+    addAppliedJob,
   };
 
   return (

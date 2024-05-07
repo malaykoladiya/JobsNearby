@@ -7,16 +7,8 @@ import ProfileWorkExCard from "../../components/ProfileManagementComponents/Prof
 const JobSeekerProfile = () => {
   const { profile, setProfile, updateProfile, loading, userType } = useAuth(); // Use profile and loading from AuthContext
 
-  console.log("profile: ", profile);
   if (loading || !profile) {
-    return (
-      <div className="min-h-screen flex justify-center items-center">
-        <div className="text-center">
-          <div className="text-gray-600 text-xl mb-4">Loading...</div>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        </div>
-      </div>
-    );
+    return <Spinner />; // Use Spinner when loading or profile is not available
   }
 
   return (

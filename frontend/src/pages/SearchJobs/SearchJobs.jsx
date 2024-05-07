@@ -25,6 +25,8 @@ function SearchJobs() {
         toast("No more jobs available", {
           variant: "info",
         });
+        // Remove the event listener when there are no more jobs
+        window.removeEventListener("scroll", throttledLoadMoreJobs);
       }
     }, 1000);
 

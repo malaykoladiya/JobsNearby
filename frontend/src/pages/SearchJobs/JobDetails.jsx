@@ -8,7 +8,8 @@ import Confetti from "react-confetti";
 import { toast } from "react-hot-toast";
 
 const JobDetails = () => {
-  const { jobs, toggleSaveJob, savedJobIDs } = useJobSearch();
+  const { jobs, toggleSaveJob, savedJobIDs, addAppliedJob, setJobs } =
+    useJobSearch();
 
   const { jobId } = useParams(); // Retrieve the job ID from the URL
   const navigate = useNavigate();
@@ -69,6 +70,9 @@ const JobDetails = () => {
     appDeadline,
     createdAt,
     applied_status,
+    under_review_status,
+    rejected_status,
+    accepted_status,
   } = jobDetail || {};
 
   // Format date
@@ -108,6 +112,18 @@ const JobDetails = () => {
       const response = await httpClient.post(API_APPLY_JOB);
       if (response.status === 200) {
         setHasApplied(true); // Set hasApplied to true on successful apply
+
+        const newAppliedJob = {
+          ...jobDetail,
+          applied_status: response.data.applied_status,
+        };
+        addAppliedJob(newAppliedJob);
+
+        // Update the applied_status in the jobs array
+        const updatedJobs = jobs.map((job) =>
+          job._id === jobId ? { ...job, applied_status: true } : job
+        );
+        setJobs(updatedJobs);
 
         handleCloseModal();
 
@@ -167,6 +183,53 @@ const JobDetails = () => {
   const handleOpenModal = () => setShowModal(true);
   const handleCloseModal = () => setShowModal(false);
 
+  const ApplicationSteps = () => {
+    // Determine the step class based on the current status
+    const getStepClass = (step) => {
+      if (accepted_status) {
+        return "step-success"; // All steps turn green if accepted
+      } else if (rejected_status) {
+        if (
+          step === "Applied" ||
+          step === "Under Review" ||
+          step === "Rejected"
+        ) {
+          return "step-error"; // Applied and Under Review turn yellow
+        }
+        return "";
+      } else if (under_review_status) {
+        if (step === "Applied" || step === "Under Review") {
+          return "step-warning"; // Applied and Under Review turn yellow
+        }
+        return ""; // Other steps use default styling
+      } else if (hasApplied) {
+        if (step === "Applied") {
+          return "step-neutral"; // Only Applied step turns primary
+        }
+        return ""; // Other steps use default styling
+      }
+      return ""; // Default case when none is applied
+    };
+
+    return (
+      <div className="flex flex-col items-center w-full mt-16">
+        <h2 className="text-xl font-semibold text-gray-700 mb-4">
+          Your Application Status
+        </h2>
+        <div className="py-4">
+          <ul className="steps steps-vertical md:steps-horizontal w-full">
+            <li className={`step ${getStepClass("Applied")}`}>Applied</li>
+            <li className={`step ${getStepClass("Under Review")}`}>
+              Under Review
+            </li>
+            <li className={`step ${getStepClass("Rejected")}`}>Rejected</li>
+            <li className={`step ${getStepClass("Accepted")}`}>Accepted</li>
+          </ul>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="bg-white shadow overflow-hidden sm:rounded-lg mx-4 my-2 md:mx-8 md:my-4 lg:mx-12 lg:my-6">
       {showConfetti && (
@@ -215,6 +278,7 @@ const JobDetails = () => {
             <span className="font-bold">{formatDate(appDeadline)}</span>
           </div>
         </div>
+        {jobDetail.applied_status && <ApplicationSteps />}
       </div>
       <div className="mt-5 border-t border-gray-200 px-4 py-5 sm:p-6">
         <dl>
