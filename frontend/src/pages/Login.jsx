@@ -38,9 +38,13 @@ const Login = () => {
       };
 
       try {
-        await login(userType, credentials);
-        toast.success("Signed in successfully");
-        navigate(`/${userType}/home`);
+        const response = await login(userType, credentials);
+        if (response.status === 200) {
+          toast.success("Signed in successfully");
+          navigate(`/${userType}/home`);
+        } else {
+          toast.error("Failed to sign in");
+        }
       } catch (err) {
         toast.error(
           "Login failed. Please check your credentials and try again."
