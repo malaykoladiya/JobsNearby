@@ -397,56 +397,57 @@ def search_jobs():
         
         has_more = (page * limit) < total_jobs
 
-    except pymongo.errors.OperationFailure as e:
-        # Handle the OperationFailure exception properly
-        return jsonify({"error": str(e)}), 500
+        # Convert the cursor to a list of jobs
+        job_data_list = []
+        for job in jobs_cursor:
+            # Check if the user has applied for this job
+            application = db.applications.find_one({
+                "user_id": ObjectId(current_user._id),  # Assuming this is the logged in user's ID
+                "job_id": job.get('_id')
+            })
 
-    # Convert the cursor to a list of jobs
-    job_data_list = []
-    for job in jobs_cursor:
-        # Check if the user has applied for this job
-        application = db.applications.find_one({
-            "user_id": ObjectId(current_user._id),  # Assuming this is the logged in user's ID
-            "job_id": job.get('_id')
+
+            job_data = {
+                "_id": str(job.get('_id')),
+                "reqId": job.get('reqId'),
+                "jobTitle": job.get('jobTitle'),
+                "jobCategory": job.get('jobCategory'),
+                "employmentType": job.get('employmentType'),
+                "noOfopening": job.get('noOfopening'),
+                "jobAdress": job.get('jobAdress'),
+                "jobCity": job.get('jobCity'),
+                "jobState": job.get('jobState'),
+                "jobZip": job.get('jobZip'),
+                "jobDescription": job.get('jobDescription'),
+                "jobQualifications": job.get('jobQualifications'),
+                "jobSkills": job.get('jobSkills'),
+                "jobSalary": job.get('jobSalary'),
+                "companyName": job.get('companyName'),
+                "companyDescription": job.get('companyDescription'),
+                "companyIndustry": job.get('companyIndustry'),
+                "startDate": job.get("startDate"),
+                "appDeadline": job.get("appDeadline"),
+                "createdAt": job.get('createdAt'),
+                "applied_status": bool(application and application.get('applied_status')),
+                "under_review_status": bool(application and application.get('under_review_status')),
+                "rejected_status": bool(application and application.get('rejected_status')),
+                "accepted_status": bool(application and application.get('accepted_status'))
+            }
+            job_data_list.append(job_data)
+
+
+        # Return the results as a JSON object
+        return jsonify({
+            "total": total_jobs,
+            "page": page,
+            "limit": limit,
+            "has_more": has_more,
+            "search_job_data": job_data_list
         })
-
-        applied_status = application.get('applied_status') if application else False
-
-        job_data = {
-            "_id": str(job.get('_id')),
-            "reqId": job.get('reqId'),
-            "jobTitle": job.get('jobTitle'),
-            "jobCategory": job.get('jobCategory'),
-            "employmentType": job.get('employmentType'),
-            "noOfopening": job.get('noOfopening'),
-            "jobAdress": job.get('jobAdress'),
-            "jobCity": job.get('jobCity'),
-            "jobState": job.get('jobState'),
-            "jobZip": job.get('jobZip'),
-            "jobDescription": job.get('jobDescription'),
-            "jobQualifications": job.get('jobQualifications'),
-            "jobSkills": job.get('jobSkills'),
-            "jobSalary": job.get('jobSalary'),
-            "companyName": job.get('companyName'),
-            "companyDescription": job.get('companyDescription'),
-            "companyIndustry": job.get('companyIndustry'),
-            "startDate": job.get("startDate"),
-            "appDeadline": job.get("appDeadline"),
-            "createdAt": job.get('createdAt'),
-            "applied_status": applied_status
-        }
-        job_data_list.append(job_data)
-
-
-    # Return the results as a JSON object
-    return jsonify({
-        "total": total_jobs,
-        "page": page,
-        "limit": limit,
-        "has_more": has_more,
-        "search_job_data": job_data_list
-    })
-
+    except pymongo.OperationFailure as e:
+        return jsonify({"error": "Database operation failed", "details": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
 
 @app.route('/api/user/job/<job_id>', methods=['GET'])
 @login_required
@@ -493,8 +494,20 @@ def get_single_job(job_id):
                 'user_id': ObjectId(user_id),
                 'job_id': ObjectId(job_id)
             })
-            # Add the applied status to the job data, true if an application exists
-            job_data['applied_status'] = bool(application and application.get('applied_status'))
+            
+            # Check and add application statuses
+            if application:
+                job_data['applied_status'] = bool(application.get('applied_status'))
+                job_data['under_review_status'] = bool(application.get('under_review_status'))
+                job_data['rejected_status'] = bool(application.get('rejected_status'))
+                job_data['accepted_status'] = bool(application.get('accepted_status'))
+            else:
+                job_data.update({
+                    'applied_status': False,
+                    'under_review_status': False,
+                    'rejected_status': False,
+                    'accepted_status': False
+                })
 
 
             return jsonify(job_data), 200
@@ -599,6 +612,10 @@ def applied_jobs():
                     "startDate": job.get('startDate').isoformat() if job.get('startDate') else None,
                     "appDeadline": job.get('appDeadline').isoformat() if job.get('appDeadline') else None,
                     "createdAt": job.get('createdAt').isoformat() if job.get('createdAt') else None,
+                    "applied_status": bool(application.get('applied_status')),
+                    "under_review_status": bool(application.get('under_review_status')),
+                    "rejected_status": bool(application.get('rejected_status')),
+                    "accepted_status": bool(application.get('accepted_status'))
                 }
                 job_list.append(job_data)
             else:
@@ -613,7 +630,6 @@ def applied_jobs():
 @login_required
 def get_saved_jobs():
     user_id = current_user._id
-    logging.info(f"Fetching saved jobs for user ID: {user_id}")
 
     try:
         # Find the user document by _id
@@ -632,7 +648,6 @@ def get_saved_jobs():
                     "job_id": job.get('_id')
                 })
 
-                applied_status = application.get('applied_status') if application else False
 
                 job_dict = {
                     "_id": str(job['_id']),
@@ -655,7 +670,11 @@ def get_saved_jobs():
                     "startDate": job.get('startDate').isoformat() if job.get('startDate') else None,
                     "appDeadline": job.get('appDeadline').isoformat() if job.get('appDeadline') else None,
                     "createdAt": job.get('createdAt').isoformat() if job.get('createdAt') else None,
-                    "applied_status": applied_status
+                    
+                    "applied_status": bool(application and application.get('applied_status')),
+                    "under_review_status": bool(application and application.get('under_review_status')),
+                    "rejected_status": bool(application and application.get('rejected_status')),
+                    "accepted_status": bool(application and application.get('accepted_status'))
                 }
                 saved_jobs.append(job_dict)
 
