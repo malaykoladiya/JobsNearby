@@ -28,6 +28,7 @@ import SettingsPage from "./pages/SettingsPage";
 import EmployerJobDetailsPage from "./pages/EmployerPages/EmployerJobDetailsPage";
 import { EmployerJobProvider } from "./context/EmployerJobContext";
 import { SpeedInsights } from "@vercel/speed-insights/react";
+import { Analytics } from "@vercel/analytics/react";
 
 const App = () => {
   // Function to handle protected routes
@@ -63,6 +64,7 @@ const App = () => {
       <Navbar />
       <Toaster />
       <SpeedInsights />
+      <Analytics />
       <div className="App font-mono">
         <Routes>
           <Route path="/" element={<RedirectToHome />} />
