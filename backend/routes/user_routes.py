@@ -10,6 +10,12 @@ from bson import ObjectId, json_util
 import traceback
 from utils.utils import validate_password, is_valid_email
 import logging
+import json
+from utils.date_utils import serialize_date
+
+
+from utils.redis_utils import cache_data, get_cached_data
+
 
 @app.route('/api/user/register', methods = ['POST'])
 def user_signup():
@@ -137,35 +143,6 @@ def user_login():
         }), 401
 
 
-# @app.route('/api/user/current', methods=['GET'])
-# @login_required
-# def current_user_info():
-#     """
-#     This endpoint returns the current logged-in user's information.
-
-#     Returns:
-#         A JSON response containing the current user's email and name.
-#     """ 
-#     try:
-        
-#         user_id = current_user.get_id()        
-#         if not user_id:
-#             return jsonify({"error": "Unauthorized"})
-        
-
-        
-#         # Find the current user in the database
-#         user_data = db.user.find_one({'_id': ObjectId(user_id)})
-#         return jsonify({
-#             "_id": str(user_data["_id"]),
-#             "email": user_data["email"]
-#         })
-        
-#     except Exception as e:
-#         print("Unexpected error: ", e)
-#         traceback.print_exc()
-#         return jsonify({"error": "An error occurred while fetching user info. Please try again later"}), 500
-
 
 
 @app.route('/api/user/profile', methods = ['GET'])
@@ -241,35 +218,35 @@ def update_user_profile():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/user/profile/workexperience', methods=['POST'])
-@login_required
-def user_add_work_experience():
-    """
-    Handles POST request to add work experience to the user's profile.
+# @app.route('/api/user/profile/workexperience', methods=['POST'])
+# @login_required
+# def user_add_work_experience():
+#     """
+#     Handles POST request to add work experience to the user's profile.
 
-    :return: JSON response with success message or error message.
-    """
-    user_id = current_user._id
-    work_experience_data = request.json
+#     :return: JSON response with success message or error message.
+#     """
+#     user_id = current_user._id
+#     work_experience_data = request.json
 
-    if not work_experience_data:
-        return jsonify({"error": "No data provided"}), 400
+#     if not work_experience_data:
+#         return jsonify({"error": "No data provided"}), 400
 
-    # Optional: Validate work_experience_data here
+#     # Optional: Validate work_experience_data here
 
-    try:
-        # Add the new work experience to the 'jobSeekerWorkExperience' array in the user's document
-        db.user.update_one(
-            {'_id': ObjectId(user_id)},
-            {'$push': {'jobSeekerWorkExperience': work_experience_data}}
-        )
-        return jsonify({"message": "Work experience added successfully"}), 200
+#     try:
+#         # Add the new work experience to the 'jobSeekerWorkExperience' array in the user's document
+#         db.user.update_one(
+#             {'_id': ObjectId(user_id)},
+#             {'$push': {'jobSeekerWorkExperience': work_experience_data}}
+#         )
+#         return jsonify({"message": "Work experience added successfully"}), 200
 
-    except Exception as e:
-        # Log the exception for debugging
-        logging.error(f"An error occurred while updating work experience: {e}")
-        # Return an error response
-        return jsonify({"error": "Unable to update the profile at this time"}), 500
+#     except Exception as e:
+#         # Log the exception for debugging
+#         logging.error(f"An error occurred while updating work experience: {e}")
+#         # Return an error response
+#         return jsonify({"error": "Unable to update the profile at this time"}), 500
 
     
 
@@ -338,38 +315,139 @@ def update_user_password():
 
 
 
-"""
-##optimize the search route later
-"""
-@app.route('/api/user/searchjobs', methods = ['GET'])
+# """
+# ##optimize the search route later
+# """
+# @app.route('/api/user/searchjobs', methods = ['GET'])
+# @login_required
+# def search_jobs():
+#     """
+#     This function searches for jobs based on a keyword and returns a paginated list of jobs.
+
+#     Args:
+#         keyword (str): The keyword to search for in the job titles and descriptions.
+#         page (int): The page number of the results to return (default is 1).
+#         limit (int): The maximum number of results to return per page (default is 10).
+
+#     Returns:
+#         A JSON object containing the total number of jobs found, the current page number,
+#         the limit of jobs per page, and a list of jobs matching the search criteria.
+#     """
+#     keyword = request.args.get('keyword')
+#     location = request.args.get('location')
+#     page = int(request.args.get('page', 1))
+#     limit = int(request.args.get('limit', 5))
+
+#     query = {}
+#     if keyword:
+#         query["$text"] = {"$search": keyword}
+
+#     location_conditions = []
+#     if location:  # This will now be true for any non-empty string including whitespace
+#         # You can strip whitespace to ensure an empty space is not considered a location
+#         location = location.strip()
+#         if location:  # Ensure that location is not just whitespace
+#             location_conditions = [
+#                 {"jobAddress": {"$regex": location, "$options": "i"}},
+#                 {"jobCity": {"$regex": location, "$options": "i"}},
+#                 {"jobState": {"$regex": location, "$options": "i"}},
+#                 {"jobZip": {"$regex": location, "$options": "i"}}
+#             ]
+
+#     if location_conditions:
+#         if "keyword" in query:
+#             # Both keyword and location provided
+#             query = {"$and": [query, {"$or": location_conditions}]}
+#         else:
+#             # Only location provided
+#             query["$or"] = location_conditions
+    
+#     try:
+#         jobs_cursor = db.jobs.find(query).sort([("createdAt", -1)]).skip((page - 1) * limit).limit(limit)
+#         total_jobs = db.jobs.count_documents(query)
+        
+#         has_more = (page * limit) < total_jobs
+
+#         # Convert the cursor to a list of jobs
+#         job_data_list = []
+#         for job in jobs_cursor:
+#             # Check if the user has applied for this job
+#             application = db.applications.find_one({
+#                 "user_id": ObjectId(current_user._id),  # Assuming this is the logged in user's ID
+#                 "job_id": job.get('_id')
+#             })
+
+
+#             job_data = {
+#                 "_id": str(job.get('_id')),
+#                 "reqId": job.get('reqId'),
+#                 "jobTitle": job.get('jobTitle'),
+#                 "jobCategory": job.get('jobCategory'),
+#                 "employmentType": job.get('employmentType'),
+#                 "noOfopening": job.get('noOfopening'),
+#                 "jobAdress": job.get('jobAdress'),
+#                 "jobCity": job.get('jobCity'),
+#                 "jobState": job.get('jobState'),
+#                 "jobZip": job.get('jobZip'),
+#                 "jobDescription": job.get('jobDescription'),
+#                 "jobQualifications": job.get('jobQualifications'),
+#                 "jobSkills": job.get('jobSkills'),
+#                 "jobSalary": job.get('jobSalary'),
+#                 "companyName": job.get('companyName'),
+#                 "companyDescription": job.get('companyDescription'),
+#                 "companyIndustry": job.get('companyIndustry'),
+#                 "startDate": job.get("startDate"),
+#                 "appDeadline": job.get("appDeadline"),
+#                 "createdAt": job.get('createdAt'),
+#                 "applied_status": bool(application and application.get('applied_status')),
+#                 "under_review_status": bool(application and application.get('under_review_status')),
+#                 "rejected_status": bool(application and application.get('rejected_status')),
+#                 "accepted_status": bool(application and application.get('accepted_status'))
+#             }
+#             job_data_list.append(job_data)
+
+
+#         # Return the results as a JSON object
+#         return jsonify({
+#             "total": total_jobs,
+#             "page": page,
+#             "limit": limit,
+#             "has_more": has_more,
+#             "search_job_data": job_data_list
+#         })
+#     except pymongo.OperationFailure as e:
+#         return jsonify({"error": "Database operation failed", "details": str(e)}), 500
+#     except Exception as e:
+#         return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
+    
+
+@app.route('/api/user/searchjobs', methods=['GET'])
 @login_required
 def search_jobs():
-    """
-    This function searches for jobs based on a keyword and returns a paginated list of jobs.
-
-    Args:
-        keyword (str): The keyword to search for in the job titles and descriptions.
-        page (int): The page number of the results to return (default is 1).
-        limit (int): The maximum number of results to return per page (default is 10).
-
-    Returns:
-        A JSON object containing the total number of jobs found, the current page number,
-        the limit of jobs per page, and a list of jobs matching the search criteria.
-    """
     keyword = request.args.get('keyword')
     location = request.args.get('location')
     page = int(request.args.get('page', 1))
     limit = int(request.args.get('limit', 5))
 
+    # Generate a unique cache key based on search criteria
+    cache_key = f"jobs:user_id={current_user._id}:keyword={keyword or ''}:location={location or ''}:page={page}:limit={limit}"
+
+    # Attempt to fetch cached data
+    cached_result = get_cached_data(cache_key)
+    if cached_result:
+        # Since data is stored as JSON in Redis, parse it before sending it to the client
+        return jsonify(json.loads(cached_result)), 200
+    else:
+        print(f"No cache hit for key: {cache_key}. Fetching data from the database.")
+    # If no cache hit, proceed with the database query
     query = {}
     if keyword:
         query["$text"] = {"$search": keyword}
 
     location_conditions = []
-    if location:  # This will now be true for any non-empty string including whitespace
-        # You can strip whitespace to ensure an empty space is not considered a location
+    if location:
         location = location.strip()
-        if location:  # Ensure that location is not just whitespace
+        if location:
             location_conditions = [
                 {"jobAddress": {"$regex": location, "$options": "i"}},
                 {"jobCity": {"$regex": location, "$options": "i"}},
@@ -379,28 +457,21 @@ def search_jobs():
 
     if location_conditions:
         if "keyword" in query:
-            # Both keyword and location provided
             query = {"$and": [query, {"$or": location_conditions}]}
         else:
-            # Only location provided
             query["$or"] = location_conditions
-    
+
     try:
         jobs_cursor = db.jobs.find(query).sort([("createdAt", -1)]).skip((page - 1) * limit).limit(limit)
         total_jobs = db.jobs.count_documents(query)
-        
         has_more = (page * limit) < total_jobs
 
-        # Convert the cursor to a list of jobs
         job_data_list = []
         for job in jobs_cursor:
-            # Check if the user has applied for this job
             application = db.applications.find_one({
-                "user_id": ObjectId(current_user._id),  # Assuming this is the logged in user's ID
+                "user_id": ObjectId(current_user._id),
                 "job_id": job.get('_id')
             })
-
-
             job_data = {
                 "_id": str(job.get('_id')),
                 "reqId": job.get('reqId'),
@@ -419,9 +490,9 @@ def search_jobs():
                 "companyName": job.get('companyName'),
                 "companyDescription": job.get('companyDescription'),
                 "companyIndustry": job.get('companyIndustry'),
-                "startDate": job.get("startDate"),
-                "appDeadline": job.get("appDeadline"),
-                "createdAt": job.get('createdAt'),
+                "startDate": serialize_date(job.get("startDate")),
+                "appDeadline": serialize_date(job.get("appDeadline")),
+                "createdAt": serialize_date(job.get('createdAt')),
                 "applied_status": bool(application and application.get('applied_status')),
                 "under_review_status": bool(application and application.get('under_review_status')),
                 "rejected_status": bool(application and application.get('rejected_status')),
@@ -429,20 +500,23 @@ def search_jobs():
             }
             job_data_list.append(job_data)
 
-
-        # Return the results as a JSON object
-        return jsonify({
+        # Package results
+        result = {
             "total": total_jobs,
             "page": page,
             "limit": limit,
             "has_more": has_more,
             "search_job_data": job_data_list
-        })
-    except pymongo.OperationFailure as e:
+        }
+
+        # Cache the result before returning, convert dict to JSON string for Redis
+        cache_data(cache_key, json.dumps(result), expire_time=3600)  # Cache for 1 hour
+        return jsonify(result), 200
+
+    except pymongo.errors.PyMongoError  as e:
         return jsonify({"error": "Database operation failed", "details": str(e)}), 500
     except Exception as e:
-        return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
-    
+        return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500    
 
 
 @app.route('/api/user/job/<job_id>', methods=['GET'])

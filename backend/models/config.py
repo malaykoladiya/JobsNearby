@@ -7,6 +7,8 @@ load_dotenv('config.env', override=True)  # Always try to load from config.env
 class Config(object):
     SECRET_KEY = os.environ.get('SECRET_KEY')  
     MONGO_URI = os.environ.get('MONGO_URI')
+    REDIS_URL = os.environ.get('SESSION_REDIS')
+
 
 
     SESSION_TYPE = os.environ.get('SESSION_TYPE')
