@@ -337,6 +337,119 @@ def update_user_password():
 
 
 
+# """
+# ##optimize the search route later
+# """
+# @app.route('/api/user/searchjobs', methods = ['GET'])
+# @login_required
+# def search_jobs():
+#     """
+#     This function searches for jobs based on a keyword and returns a paginated list of jobs.
+
+#     Args:
+#         keyword (str): The keyword to search for in the job titles and descriptions.
+#         page (int): The page number of the results to return (default is 1).
+#         limit (int): The maximum number of results to return per page (default is 10).
+
+#     Returns:
+#         A JSON object containing the total number of jobs found, the current page number,
+#         the limit of jobs per page, and a list of jobs matching the search criteria.
+#     """
+#     keyword = request.args.get('debouncedKeyword')
+#     location = request.args.get('location')
+#     page = int(request.args.get('page', 1))
+#     limit = int(request.args.get('limit', 5))
+
+#     # If a keyword is provided, search for jobs containing that keyword
+#     # if keyword:
+#     #     jobs_cursor = db.jobs.find({"$text": {"$search": keyword}}).skip((page-1)*limit).limit(limit)
+#     #     total_jobs = db.jobs.count_documents({"$text": {"$search": keyword}})
+
+#     # Otherwise, return all jobs sorted by ID
+
+#     query = {}
+#     if keyword:
+#         query["$text"] = {"$search": keyword}
+
+#     location_conditions = []
+#     if location:  # This will now be true for any non-empty string including whitespace
+#         # You can strip whitespace to ensure an empty space is not considered a location
+#         location = location.strip()
+#         if location:  # Ensure that location is not just whitespace
+#             location_conditions = [
+#                 {"jobAddress": {"$regex": location, "$options": "i"}},
+#                 {"jobCity": {"$regex": location, "$options": "i"}},
+#                 {"jobState": {"$regex": location, "$options": "i"}},
+#                 {"jobZip": {"$regex": location, "$options": "i"}}
+#             ]
+
+#     if location_conditions:
+#         if "keyword" in query:
+#             # Both keyword and location provided
+#             query = {"$and": [query, {"$or": location_conditions}]}
+#         else:
+#             # Only location provided
+#             query["$or"] = location_conditions
+    
+#     try:
+#         jobs_cursor = db.jobs.find(query).sort([("createdAt", -1)]).skip((page - 1) * limit).limit(limit)
+#         total_jobs = db.jobs.count_documents(query)
+        
+#         has_more = (page * limit) < total_jobs
+
+#         # Convert the cursor to a list of jobs
+#         job_data_list = []
+#         for job in jobs_cursor:
+#             # Check if the user has applied for this job
+#             application = db.applications.find_one({
+#                 "user_id": ObjectId(current_user._id),  # Assuming this is the logged in user's ID
+#                 "job_id": job.get('_id')
+#             })
+
+
+#             job_data = {
+#                 "_id": str(job.get('_id')),
+#                 "reqId": job.get('reqId'),
+#                 "jobTitle": job.get('jobTitle'),
+#                 "jobCategory": job.get('jobCategory'),
+#                 "employmentType": job.get('employmentType'),
+#                 "noOfopening": job.get('noOfopening'),
+#                 "jobAdress": job.get('jobAdress'),
+#                 "jobCity": job.get('jobCity'),
+#                 "jobState": job.get('jobState'),
+#                 "jobZip": job.get('jobZip'),
+#                 "jobDescription": job.get('jobDescription'),
+#                 "jobQualifications": job.get('jobQualifications'),
+#                 "jobSkills": job.get('jobSkills'),
+#                 "jobSalary": job.get('jobSalary'),
+#                 "companyName": job.get('companyName'),
+#                 "companyDescription": job.get('companyDescription'),
+#                 "companyIndustry": job.get('companyIndustry'),
+#                 "startDate": job.get("startDate"),
+#                 "appDeadline": job.get("appDeadline"),
+#                 "createdAt": job.get('createdAt'),
+#                 "applied_status": bool(application and application.get('applied_status')),
+#                 "under_review_status": bool(application and application.get('under_review_status')),
+#                 "rejected_status": bool(application and application.get('rejected_status')),
+#                 "accepted_status": bool(application and application.get('accepted_status'))
+#             }
+#             job_data_list.append(job_data)
+
+
+#         # Return the results as a JSON object
+#         return jsonify({
+#             "total": total_jobs,
+#             "page": page,
+#             "limit": limit,
+#             "has_more": has_more,
+#             "search_job_data": job_data_list
+#         })
+#     except pymongo.OperationFailure as e:
+#         return jsonify({"error": "Database operation failed", "details": str(e)}), 500
+#     except Exception as e:
+#         return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
+
+
 """
 ##optimize the search route later
 """
@@ -355,7 +468,7 @@ def search_jobs():
         A JSON object containing the total number of jobs found, the current page number,
         the limit of jobs per page, and a list of jobs matching the search criteria.
     """
-    keyword = request.args.get('debouncedKeyword')
+    keyword = request.args.get('keyword')
     location = request.args.get('location')
     page = int(request.args.get('page', 1))
     limit = int(request.args.get('limit', 5))
@@ -448,6 +561,8 @@ def search_jobs():
         return jsonify({"error": "Database operation failed", "details": str(e)}), 500
     except Exception as e:
         return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
+    
+
 
 @app.route('/api/user/job/<job_id>', methods=['GET'])
 @login_required
