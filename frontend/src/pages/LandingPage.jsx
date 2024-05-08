@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -12,14 +13,23 @@ const LandingPage = () => {
     setUserType(selectedUserType);
     // setUserTypeContext(selectedUserType);
     localStorage.setItem("userType", selectedUserType);
+    if (error) setError("");
   };
 
   const handleLogin = () => {
-    navigate("/login");
+    if (!userType) {
+      toast.error("Please select either Job Seeker or Employer to proceed.");
+    } else {
+      navigate("/login");
+    }
   };
 
   const handleRegistration = () => {
-    navigate("/register");
+    if (!userType) {
+      toast.error("Please select either Job Seeker or Employer to proceed.");
+    } else {
+      navigate("/register");
+    }
   };
 
   return (
@@ -27,10 +37,11 @@ const LandingPage = () => {
       <div className="bg-white bg-opacity-10 rounded-lg shadow-lg p-8 max-w-md w-full text-center">
         <h1 className="text-4xl font-bold mb-5">Explore Opportunities</h1>
         <p className="text-lg font-medium mb-8">
-          Connect with local businesses and job seekers in your
-          community—discover the right opportunities or talent near you.
+          Connect with local businesses and job seekers in your community.
+          Discover the right opportunities or talent near you.
         </p>
 
+        {/* Display error message if needed */}
         <div className="flex justify-center gap-4 mb-8">
           <label className="flex items-center gap-2 text-lg cursor-pointer hover:scale-105 transition-transform">
             <input
@@ -53,7 +64,6 @@ const LandingPage = () => {
             Employer
           </label>
         </div>
-
         <div className="flex justify-center gap-4">
           <button
             className="bg-white text-indigo-500 px-4 py-2 rounded-full hover:bg-transparent hover:text-white hover:border-2 hover:border-white transition-colors"
