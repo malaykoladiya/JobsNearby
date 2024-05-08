@@ -42,7 +42,7 @@ export const JobSearchProvider = ({ children }) => {
       if (newJobs.length === 0) {
         setHasMore(false);
         setJobs(page === 1 ? [] : jobs);
-        if (page === 1) toast.info("No results found.");
+        if (page === 1) toast.error("No results found.");
       } else {
         setJobs((prevJobs) =>
           page === 1
@@ -65,7 +65,7 @@ export const JobSearchProvider = ({ children }) => {
 
   useEffect(() => {
     fetchJobs(); // Fetch jobs on page change or on initial load
-  }, [page]);
+  }, [page, keyword, location]);
 
   const handleSearch = async (searchCriteria) => {
     setKeyword(searchCriteria.keyword);
@@ -73,7 +73,6 @@ export const JobSearchProvider = ({ children }) => {
     setPage(1); // Reset to the first page
     setJobs([]);
     setHasMore(true);
-    fetchJobs();
   };
 
   const handleSelectJob = (job) => {

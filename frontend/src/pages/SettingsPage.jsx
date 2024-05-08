@@ -45,7 +45,6 @@ const SettingsPage = () => {
     validationSchema,
     onSubmit: async (values, { setSubmitting, resetForm }) => {
       setSubmitting(true);
-      console.log("Form submitted", values); // Debug log
 
       const emailField = prefix("email");
       const newEmailField = prefix("newEmail");
@@ -82,8 +81,6 @@ const SettingsPage = () => {
           [oldPasswordField]: values[oldPasswordField],
           [newPasswordField]: values[newPasswordField],
         };
-
-        console.log("Sending password update request", body); // Debug log
 
         try {
           const response = await httpClient.put(UPDATE_PASSWORD_URL, body);

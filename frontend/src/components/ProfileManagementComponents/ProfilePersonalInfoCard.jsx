@@ -64,7 +64,6 @@ const ProfilePersonalInfoCard = () => {
           throw new Error("Backend update failed");
         }
       } catch (error) {
-        console.error("Error updating profile:", error);
         toast.error("Failed to update profile. Please try again.");
       }
       resetForm();

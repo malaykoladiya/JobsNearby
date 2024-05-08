@@ -3,7 +3,6 @@ import { FaUniversity, FaBuilding } from "react-icons/fa";
 import { AiOutlineMail, AiOutlinePhone, AiOutlineHome } from "react-icons/ai";
 
 const EmployerViewOfJobSeekerProfile = ({ profile }) => {
-  console.log("profile:", profile);
   const renderProfileImageOrInitials = () => {
     if (profile.imageUrl) {
       return (

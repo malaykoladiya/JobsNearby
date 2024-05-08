@@ -46,8 +46,6 @@ function EmployerJobForm({ job, onSubmit }) {
   });
 
   useEffect(() => {
-    console.log("Received job prop:", job);
-
     if (job) {
       const formattedStartDate = job.startDate
         ? new Date(job.startDate).toISOString().slice(0, 10)

@@ -22,12 +22,10 @@ const EmployerJobApplicantsPage = () => {
 
   // Function to fetch user profile details
   const fetchUserProfile = async (selectedUserId) => {
-    console.log("Fetching user profile for user ID:", selectedUserId);
     try {
       const response = await httpClient.get(
         `/employer/user_profile/${selectedUserId}`
       );
-      console.log("User profile response:", response.data);
       if (response.data && Object.keys(response.data).length !== 0) {
         setJobSeekerProfile(response.data);
         setIsProfileModalOpen(true);
@@ -159,8 +157,6 @@ const EmployerJobApplicantsPage = () => {
   //Handle Status Change
 
   const handleStatusChange = async (application_id, newStatus) => {
-    console.log("Updating status for application ID:", application_id);
-
     try {
       // Send the request to the server and wait for the response
       const response = await httpClient.put(

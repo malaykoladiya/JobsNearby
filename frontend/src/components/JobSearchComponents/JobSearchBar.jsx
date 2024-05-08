@@ -18,7 +18,6 @@ const JobSearchBar = () => {
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    console.log("Submitting search with:", localKeyword, localLocation);
 
     handleSearch({ keyword: localKeyword, location: localLocation });
   };

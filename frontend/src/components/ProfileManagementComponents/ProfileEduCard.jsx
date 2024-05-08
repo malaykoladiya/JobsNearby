@@ -165,7 +165,6 @@ const ProfileEduCard = ({ education = [] }) => {
         toast.success("Education updated successfully!");
         setModalIsOpen(false);
       } catch (error) {
-        console.error("Error updating education:", error);
         toast.error(
           "An error occurred while updating education: ",
           error.message
@@ -216,14 +215,11 @@ const ProfileEduCard = ({ education = [] }) => {
     try {
       const response = await updateProfile(userType, updatedProfile);
       if (response.data && response.success) {
-        console.log("Education deleted successfully");
         toast.success("Education deleted successfully!");
       } else {
-        console.error("Failed to delete education entry");
         toast.error("Failed to delete education entry.");
       }
     } catch (error) {
-      console.error("Error deleting education:", error);
       toast.error("An error occurred while deleting education.");
     }
   };

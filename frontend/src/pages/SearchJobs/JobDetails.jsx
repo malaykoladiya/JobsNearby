@@ -30,7 +30,6 @@ const JobDetails = () => {
         const response = await httpClient.get(API_JOB_DETAILS); // Replace with your actual API endpoint
         if (response.data) {
           setJobDetail(response.data);
-          console.log(response.data);
           // Update the hasApplied state based on the applied_status from the response
           setHasApplied(response.data.applied_status);
         }

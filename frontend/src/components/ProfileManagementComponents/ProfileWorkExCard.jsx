@@ -160,7 +160,6 @@ const ProfileWorkExCard = ({ workExperience = [] }) => {
         toast.success("Work experience updated successfully!");
         setIsModalOpen(false);
       } catch (error) {
-        console.error("Error updating work experience:", error);
         toast.error("An error occurred while updating work experience.");
       }
       resetForm({});
@@ -209,14 +208,11 @@ const ProfileWorkExCard = ({ workExperience = [] }) => {
       const response = await updateProfile(userType, updatedProfile);
 
       if (response.data && response.success) {
-        console.log("Profile updated successfully after deletion");
         toast.success("Work experience deleted successfully!");
       } else {
-        console.error("Deletion was unsuccessful, reverting to previous state");
         toast.error("An error occurred while deleting work experience.");
       }
     } catch (error) {
-      console.error("Error deleting work experience:", error);
       toast.error("An error occurred while deleting work experience.");
     }
   };

@@ -10,7 +10,6 @@ const EmployerJobDetailsPage = () => {
   const { jobs, selectedJob, handleSelectJob, setJobs } = useEmployerJob();
   const [jobDetail, setJobDetail] = useState(selectedJob);
 
-  console.log("Selected Job: ", selectedJob);
   const { jobId } = useParams(); // Retrieve the job ID from the URL
 
   const API_EMPLOYER_JOB_DETAILS = `/employer/job/${jobId}`;
@@ -68,7 +67,6 @@ const EmployerJobDetailsPage = () => {
   }, []);
 
   const handleFormSubmit = async (formData) => {
-    console.log("Form Data Submitted: ", formData);
     try {
       // Construct the URL with the job ID
       const jobUpdateUrl = `/employer/updatejob/${selectedJob._id}`;
