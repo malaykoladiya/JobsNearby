@@ -13,7 +13,6 @@ const LandingPage = () => {
     setUserType(selectedUserType);
     // setUserTypeContext(selectedUserType);
     localStorage.setItem("userType", selectedUserType);
-    if (error) setError("");
   };
 
   const handleLogin = () => {
