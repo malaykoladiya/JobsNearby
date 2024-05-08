@@ -34,67 +34,51 @@ export const JobSearchProvider = ({ children }) => {
   const fetchJobs = useCallback(async () => {
     setIsLoading(true);
     try {
-      const params = {
-        page,
-        limit,
-        keyword,
-        location,
-      };
-      const response = await httpClient.get(API_USER_SEARCH_JOBS, { params });
-      console.log("consle in fetch job function: ", response.data);
-      const newJobs = response.data.search_job_data;
+      const response = await httpClient.get(API_USER_SEARCH_JOBS, {
+        params: { page, limit, keyword, location },
+      });
+      const { search_job_data: newJobs } = response.data;
+
       if (newJobs.length === 0) {
         setHasMore(false);
-        if (page === 1) {
-          // Assuming page starts at 1
-          setJobs([]); // Clear jobs if it's a new search and no results are found
-          toast.info("No results found.");
-        }
-        setIsLoading(false);
-        return;
+        setJobs(page === 1 ? [] : jobs);
+        if (page === 1) toast.info("No results found.");
       } else {
-        setJobs((prevJobs) => {
-          if (page === 1) {
-            // New search or initial load: Replace existing jobs with new ones
-            return newJobs;
-          } else {
-            // Scrolling for more: Append new jobs avoiding duplicates
-            const jobsSet = new Set(prevJobs.map((job) => job._id));
-            const newUniqueJobs = newJobs.filter(
-              (job) => !jobsSet.has(job._id)
-            );
-            return [...prevJobs, ...newUniqueJobs];
-          }
-        });
+        setJobs((prevJobs) =>
+          page === 1
+            ? newJobs
+            : [
+                ...prevJobs,
+                ...newJobs.filter(
+                  (job) => !prevJobs.some((p) => p._id === job._id)
+                ),
+              ]
+        );
         setHasMore(newJobs.length === limit);
       }
     } catch (error) {
-      toast.error("An error occurred while fetching jobs.");
+      toast.error("An error occurred while fetching jobs: " + error.message);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, [keyword, location, page, limit]);
 
   useEffect(() => {
-    fetchJobs();
+    fetchJobs(); // Fetch jobs on page change or on initial load
   }, [page]);
 
   const handleSearch = async (searchCriteria) => {
-    console.log("Search initiated", searchCriteria);
-    console.log("handleSearch", searchCriteria);
-
     setKeyword(searchCriteria.keyword);
     setLocation(searchCriteria.location);
-    setPage(1);
+    setPage(1); // Reset to the first page
     setJobs([]);
     setHasMore(true);
-    await fetchJobs();
+    fetchJobs();
   };
 
   const handleSelectJob = (job) => {
     setSelectedJob(job);
   };
-
-  console.log("jobs in context", jobs);
 
   const addAppliedJob = useCallback((newJob) => {
     setAppliedJobs((prevJobs) => [...prevJobs, newJob]);
@@ -105,7 +89,6 @@ export const JobSearchProvider = ({ children }) => {
     try {
       const response = await httpClient.get(API_USER_APPLIED_JOBS);
       setAppliedJobs(response.data.jobs_applied);
-      console.log("applied jobs in context", response.data.jobs_applied);
     } catch (error) {
       toast.error("An error occurred while fetching applied jobs.");
     }
@@ -119,7 +102,6 @@ export const JobSearchProvider = ({ children }) => {
   const fetchSavedJobs = useCallback(async () => {
     try {
       const response = await httpClient.get(API_USER_SAVED_JOBS);
-      // console.log("saved jobs in context fetchSavedJobs", response.data);
       setSavedJobData(response.data);
       setSavedJobIDs(new Set(response.data.map((job) => job._id)));
     } catch (error) {
@@ -132,8 +114,6 @@ export const JobSearchProvider = ({ children }) => {
       fetchSavedJobs();
     }
   }, [profile, fetchSavedJobs]);
-
-  // console.log("save jobs in searchcontext", savedJobIDs);
 
   const toggleSaveJob = async (jobId) => {
     const newSavedJobs = new Set(savedJobIDs);
@@ -150,8 +130,6 @@ export const JobSearchProvider = ({ children }) => {
 
     try {
       const response = await updateProfile(userType, updatedProfileData);
-      // console.log(response.data);
-      // console.log("Profile updated successfully");
       setSavedJobIDs(newSavedJobs);
     } catch (error) {
       console.error("Failed to update profile:", error);
