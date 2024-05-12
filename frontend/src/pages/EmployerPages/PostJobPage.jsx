@@ -1,9 +1,12 @@
 // pages/PostJobPage.js
 
-import React from "react";
-import EmployerJobForm from "../../components/EmployerJobComponents/EmployerJobForm";
+import React, { Suspense, lazy } from "react";
 import httpClient from "../../utils/httpClient";
 import { toast } from "react-hot-toast";
+import Spinner from "../../components/Spinner/Spinner";
+const EmployerJobForm = lazy(() =>
+  import("../../components/EmployerJobComponents/EmployerJobForm")
+);
 
 function PostJobPage() {
   const API_URL = "/employer/postjob";
@@ -30,7 +33,9 @@ function PostJobPage() {
       <h2 className="text-2xl text-gray-800 font-semibold mb-6 mt-8">
         Post a Job
       </h2>
-      <EmployerJobForm onSubmit={handleCreateJob} />
+      <Suspense fallback={<Spinner />}>
+        <EmployerJobForm onSubmit={handleCreateJob} />
+      </Suspense>
     </div>
   );
 }

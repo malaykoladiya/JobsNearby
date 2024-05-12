@@ -1,11 +1,14 @@
+import React, { Suspense, lazy } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import { useJobSearch } from "../../context/JobSearchContext";
 import httpClient from "../../utils/httpClient";
 import { useEffect, useState } from "react";
-import ApplyButtonModal from "../../components/JobSearchComponents/ApplyButtonModal";
 import Spinner from "../../components/Spinner/Spinner";
-import Confetti from "react-confetti";
 import { toast } from "react-hot-toast";
+const Confetti = lazy(() => import("react-confetti"));
+const ApplyButtonModal = lazy(() =>
+  import("../../components/JobSearchComponents/ApplyButtonModal")
+);
 
 const JobDetails = () => {
   const { jobs, toggleSaveJob, savedJobIDs, addAppliedJob, setJobs } =
@@ -232,13 +235,15 @@ const JobDetails = () => {
   return (
     <div className="bg-white shadow overflow-hidden sm:rounded-lg mx-4 my-2 md:mx-8 md:my-4 lg:mx-12 lg:my-6">
       {showConfetti && (
-        <Confetti
-          width={window.innerWidth}
-          height={window.innerHeight}
-          run={true} // This prop controls whether confetti is actively rendering
-          recycle={false} // This prop controls whether to keep recycling the confetti pieces
-          numberOfPieces={500}
-        />
+        <Suspense fallback={<div>Loading...</div>}>
+          <Confetti
+            width={window.innerWidth}
+            height={window.innerHeight}
+            run={true} // This prop controls whether confetti is actively rendering
+            recycle={false} // This prop controls whether to keep recycling the confetti pieces
+            numberOfPieces={500}
+          />
+        </Suspense>
       )}
       <div className="px-4 py-5 sm:px-6 md:px-8 lg:px-10">
         {/* Header */}
@@ -393,11 +398,13 @@ const JobDetails = () => {
                 {isJobSaved ? "Unsave Job" : "Save Job"}
               </button>
             </div>
-            <ApplyButtonModal
-              isOpen={showModal}
-              onClose={handleCloseModal}
-              onConfirm={handleApply}
-            />
+            <Suspense fallback={<div>Loading...</div>}>
+              <ApplyButtonModal
+                isOpen={showModal}
+                onClose={handleCloseModal}
+                onConfirm={handleApply}
+              />
+            </Suspense>
           </div>
         </dl>
       </div>

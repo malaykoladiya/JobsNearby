@@ -1,10 +1,19 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  lazy,
+  Suspense,
+} from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import EmployerJobForm from "../../components/EmployerJobComponents/EmployerJobForm";
 import { toast } from "react-hot-toast";
 import httpClient from "../../utils/httpClient";
 import { useEmployerJob } from "../../context/EmployerJobContext";
 import Spinner from "../../components/Spinner/Spinner";
+const EmployerJobForm = lazy(() =>
+  import("../../components/EmployerJobComponents/EmployerJobForm")
+);
 
 const EmployerJobDetailsPage = () => {
   const { jobs, selectedJob, handleSelectJob, setJobs } = useEmployerJob();
@@ -354,7 +363,9 @@ const EmployerJobDetailsPage = () => {
             <h3 className="mt-10 font-bold text-2xl text-center">
               Edit Job Details
             </h3>
-            <EmployerJobForm job={selectedJob} onSubmit={handleFormSubmit} />
+            <Suspense fallback={<Spinner />}>
+              <EmployerJobForm job={selectedJob} onSubmit={handleFormSubmit} />
+            </Suspense>
           </div>
         </div>
       )}

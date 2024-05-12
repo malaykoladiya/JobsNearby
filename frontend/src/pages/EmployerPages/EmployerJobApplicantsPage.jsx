@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { useParams } from "react-router-dom";
 import { useEmployerJob } from "../../context/EmployerJobContext";
 import httpClient from "../../utils/httpClient";
@@ -7,7 +7,11 @@ import { toast } from "react-hot-toast";
 import { parseISO, formatDistanceToNow } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 
-import EmployerViewOfJobSeekerProfile from "../../components/EmployerJobComponents/EmployerViewOfJobSeekerProfile";
+const EmployerViewOfJobSeekerProfile = lazy(() =>
+  import(
+    "../../components/EmployerJobComponents/EmployerViewOfJobSeekerProfile"
+  )
+);
 
 const EmployerJobApplicantsPage = () => {
   const { jobId } = useParams();
@@ -63,7 +67,9 @@ const EmployerJobApplicantsPage = () => {
           className="modal-box sm:max-w-2xl md:max-w-3xl"
           onClick={(e) => e.stopPropagation()}
         >
-          <EmployerViewOfJobSeekerProfile profile={jobSeekerProfile} />
+          <Suspense fallback={<Spinner />}>
+            <EmployerViewOfJobSeekerProfile profile={jobSeekerProfile} />
+          </Suspense>
 
           <div className="modal-action">
             <button

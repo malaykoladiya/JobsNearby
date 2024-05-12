@@ -32,6 +32,9 @@ export const JobSearchProvider = ({ children }) => {
 
   // Function to fetch jobs based on search criteria
   const fetchJobs = useCallback(async () => {
+    if (userType !== "jobSeeker") {
+      return; // Only job seekers should fetch jobs
+    }
     setIsLoading(true);
     try {
       const response = await httpClient.get(API_USER_SEARCH_JOBS, {
@@ -61,11 +64,13 @@ export const JobSearchProvider = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [keyword, location, page, limit]);
+  }, [keyword, location, page, limit, userType]);
 
   useEffect(() => {
-    fetchJobs(); // Fetch jobs on page change or on initial load
-  }, [page, keyword, location]);
+    if (userType === "jobSeeker") {
+      fetchJobs(); // Fetch jobs on page change or on initial load
+    }
+  }, [page, keyword, location, fetchJobs, userType]);
 
   const handleSearch = async (searchCriteria) => {
     setKeyword(searchCriteria.keyword);
@@ -85,6 +90,9 @@ export const JobSearchProvider = ({ children }) => {
 
   // Function to fetch applied jobs
   const fetchAppliedJobs = useCallback(async () => {
+    if (userType !== "jobSeeker") {
+      return; // Only job seekers should fetch applied jobs
+    }
     try {
       const response = await httpClient.get(API_USER_APPLIED_JOBS);
       setAppliedJobs(response.data.jobs_applied);
@@ -94,11 +102,16 @@ export const JobSearchProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    fetchAppliedJobs();
+    if (userType === "jobSeeker") {
+      fetchAppliedJobs(); // Fetch applied jobs if user is a job seeker
+    }
   }, [fetchAppliedJobs]);
 
   // Function to fetch saved jobs
   const fetchSavedJobs = useCallback(async () => {
+    if (userType !== "jobSeeker") {
+      return; // Only job seekers should fetch saved jobs
+    }
     try {
       const response = await httpClient.get(API_USER_SAVED_JOBS);
       setSavedJobData(response.data);
@@ -109,7 +122,7 @@ export const JobSearchProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    if (profile) {
+    if (profile && userType === "jobSeeker") {
       fetchSavedJobs();
     }
   }, [profile, fetchSavedJobs]);

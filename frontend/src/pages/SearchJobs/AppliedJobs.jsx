@@ -1,7 +1,9 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { useJobSearch } from "../../context/JobSearchContext";
-import JobCards from "../../components/JobSearchComponents/JobCards";
 import Spinner from "../../components/Spinner/Spinner";
+const JobCards = lazy(() =>
+  import("../../components/JobSearchComponents/JobCards")
+);
 
 const AppliedJobs = () => {
   const { appliedJobs, setSelectedJob, isLoading } = useJobSearch();
@@ -19,7 +21,9 @@ const AppliedJobs = () => {
       <h1 className="text-2xl font-bold mb-6 text-center">Applied Jobs</h1>
       <div className="mt-5">
         {appliedJobs.length > 0 ? (
-          <JobCards jobs={appliedJobs} basePath="/jobSeeker/applied-jobs" />
+          <Suspense fallback={<Spinner />}>
+            <JobCards jobs={appliedJobs} basePath="/jobSeeker/applied-jobs" />
+          </Suspense>
         ) : (
           <p className="text-center my-auto text-gray-600">
             No applied jobs found.

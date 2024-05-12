@@ -1,11 +1,14 @@
-import React, { useEffect } from "react";
-import JobCards from "../../components/JobSearchComponents/JobCards";
+import React, { useEffect, Suspense, lazy } from "react";
+
 import { toast } from "react-hot-toast";
 import { throttle } from "lodash";
 import { useJobSearch } from "../../context/JobSearchContext";
 import Spinner from "../../components/Spinner/Spinner";
 import JobSearchBar from "../../components/JobSearchComponents/JobSearchBar";
 import { useLocation } from "react-router-dom";
+const JobCards = lazy(() =>
+  import("../../components/JobSearchComponents/JobCards")
+);
 
 function SearchJobs() {
   const { setPage, jobs, setSelectedJob, isLoading, hasMore, handleSearch } =
@@ -66,7 +69,10 @@ function SearchJobs() {
       </div>
 
       <div className="mt-5">
-        <JobCards jobs={jobs} basePath="/jobSeeker/search-jobs" />
+        <Suspense fallback={<Spinner />}>
+          <JobCards jobs={jobs} basePath="/jobSeeker/search-jobs" />
+        </Suspense>
+
         {isLoading && (
           <div className="flex justify-center items-center space-x-2 my-11">
             <Spinner />

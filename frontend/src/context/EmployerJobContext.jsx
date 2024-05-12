@@ -1,9 +1,12 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
 import httpClient from "../utils/httpClient";
+import { useAuth } from "./AuthContext";
 
 const EmployerJobContext = createContext();
 
 export const EmployerJobProvider = ({ children }) => {
+  const { userType } = useAuth(); // Get userType directly from AuthContext
+
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
 
@@ -21,7 +24,9 @@ export const EmployerJobProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    employerFetchJobs();
+    if (userType === "employer") {
+      employerFetchJobs();
+    }
   }, []);
 
   const handleSelectJob = (job) => {

@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, lazy, Suspense } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import WelcomeModal from "../components/WelcomeModal";
+import Spinner from "../components/Spinner/Spinner";
+const WelcomeModal = lazy(() => import("../components/WelcomeModal"));
 
 const HomePage = () => {
   const location = useLocation();
@@ -85,8 +86,10 @@ const HomePage = () => {
       <div className="flex justify-center items-center my-10 text-xl font-semibold">
         <h1>Welcome to the Home Page</h1>
       </div>
-      <div>{showModal && <WelcomeModal />}</div>
-      {renderHomeCards(userType, navigate)}
+      <Suspense fallback={<Spinner />}>
+        <div>{showModal && <WelcomeModal />}</div>
+        {renderHomeCards(userType, navigate)}
+      </Suspense>
     </div>
   );
 };

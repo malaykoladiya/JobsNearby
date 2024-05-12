@@ -1,6 +1,10 @@
+import React, { Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
-import EmployerJobCard from "../../components/EmployerJobComponents/EmployerJobCard";
 import { useEmployerJob } from "../../context/EmployerJobContext";
+import Spinner from "../../components/Spinner/Spinner";
+const EmployerJobCard = lazy(() =>
+  import("../../components/EmployerJobComponents/EmployerJobCard")
+);
 
 const EmployerViewJobs = () => {
   const { jobs, selectedJob, handleSelectJob } = useEmployerJob();
@@ -18,14 +22,16 @@ const EmployerViewJobs = () => {
         <div className="col-span-full text-center text-xl font-semibold bg-blue-100 p-4 rounded-md shadow-md">
           Your Posted Jobs
         </div>
-        {jobs.map((job) => (
-          <EmployerJobCard
-            key={job._id}
-            job={job}
-            onSelectJob={handleJobSelect}
-            isSelected={selectedJob && job._id === selectedJob._id}
-          />
-        ))}
+        <Suspense fallback={<Spinner />}>
+          {jobs.map((job) => (
+            <EmployerJobCard
+              key={job._id}
+              job={job}
+              onSelectJob={handleJobSelect}
+              isSelected={selectedJob && job._id === selectedJob._id}
+            />
+          ))}
+        </Suspense>
       </aside>
     </div>
   );
