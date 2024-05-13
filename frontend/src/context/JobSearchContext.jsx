@@ -64,7 +64,7 @@ export const JobSearchProvider = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [keyword, location, page, limit, userType]);
+  }, [keyword, location, page, limit]);
 
   useEffect(() => {
     if (userType === "jobSeeker") {
@@ -85,16 +85,29 @@ export const JobSearchProvider = ({ children }) => {
   };
 
   const addAppliedJob = useCallback((newJob) => {
-    setAppliedJobs((prevJobs) => [...prevJobs, newJob]);
+    setAppliedJobs((prevJobs) => {
+      const updatedJobs = [...prevJobs, newJob];
+      sessionStorage.setItem("applied-jobs", JSON.stringify(updatedJobs)); // Update session storage
+      return updatedJobs;
+    });
   }, []);
 
-  // Function to fetch applied jobs
   const fetchAppliedJobs = useCallback(async () => {
     if (userType !== "jobSeeker") {
       return; // Only job seekers should fetch applied jobs
     }
+    const cacheKey = "applied-jobs";
+    const cachedData = sessionStorage.getItem(cacheKey);
+    if (cachedData) {
+      setAppliedJobs(JSON.parse(cachedData));
+      return;
+    }
     try {
       const response = await httpClient.get(API_USER_APPLIED_JOBS);
+      sessionStorage.setItem(
+        cacheKey,
+        JSON.stringify(response.data.jobs_applied)
+      );
       setAppliedJobs(response.data.jobs_applied);
     } catch (error) {
       toast.error("An error occurred while fetching applied jobs.");
@@ -107,13 +120,21 @@ export const JobSearchProvider = ({ children }) => {
     }
   }, [fetchAppliedJobs]);
 
-  // Function to fetch saved jobs
   const fetchSavedJobs = useCallback(async () => {
     if (userType !== "jobSeeker") {
       return; // Only job seekers should fetch saved jobs
     }
+    const cacheKey = "saved-jobs";
+    const cachedData = sessionStorage.getItem(cacheKey);
+    if (cachedData) {
+      const savedData = JSON.parse(cachedData);
+      setSavedJobData(savedData);
+      setSavedJobIDs(new Set(savedData.map((job) => job._id)));
+      return;
+    }
     try {
       const response = await httpClient.get(API_USER_SAVED_JOBS);
+      sessionStorage.setItem(cacheKey, JSON.stringify(response.data));
       setSavedJobData(response.data);
       setSavedJobIDs(new Set(response.data.map((job) => job._id)));
     } catch (error) {
@@ -129,8 +150,10 @@ export const JobSearchProvider = ({ children }) => {
 
   const toggleSaveJob = async (jobId) => {
     const newSavedJobs = new Set(savedJobIDs);
+    let isJobAdded = true;
     if (newSavedJobs.has(jobId)) {
       newSavedJobs.delete(jobId);
+      isJobAdded = false;
     } else {
       newSavedJobs.add(jobId);
     }
@@ -143,9 +166,28 @@ export const JobSearchProvider = ({ children }) => {
     try {
       const response = await updateProfile(userType, updatedProfileData);
       setSavedJobIDs(newSavedJobs);
+      updateSessionStorage(newSavedJobs, isJobAdded, jobId);
     } catch (error) {
       console.error("Failed to update profile:", error);
     }
+  };
+
+  const updateSessionStorage = (newSavedJobs, isJobAdded, jobId) => {
+    const cachedData = sessionStorage.getItem("saved-jobs");
+    let savedJobs = cachedData ? JSON.parse(cachedData) : [];
+
+    if (isJobAdded) {
+      // Assuming you fetch the full job data somewhere in your app or have it available
+      const jobToAdd = jobs.find((job) => job._id === jobId);
+      if (jobToAdd) {
+        savedJobs.push(jobToAdd);
+      }
+    } else {
+      savedJobs = savedJobs.filter((job) => job._id !== jobId);
+    }
+
+    sessionStorage.setItem("saved-jobs", JSON.stringify(savedJobs));
+    setSavedJobData(savedJobs);
   };
 
   const value = {
