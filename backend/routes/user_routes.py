@@ -437,8 +437,7 @@ def search_jobs():
     if cached_result:
         # Since data is stored as JSON in Redis, parse it before sending it to the client
         return jsonify(json.loads(cached_result)), 200
-    else:
-        print(f"No cache hit for key: {cache_key}. Fetching data from the database.")
+   
     # If no cache hit, proceed with the database query
     query = {}
     if keyword:
