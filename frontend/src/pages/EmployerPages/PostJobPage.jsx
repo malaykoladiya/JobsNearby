@@ -15,9 +15,23 @@ function PostJobPage() {
     // Make a POST request to create a new job with the formData
     try {
       const response = await httpClient.post(API_URL, formData);
-      toast.success(response.data.message || "Job posted successfully!");
+      if (response.data && response.data.newJob) {
+        toast.success(response.data.message || "Job posted successfully!");
 
-      resetForm(); // Reset form after successful submission
+        // Update the session storage with the new job data returned from the server
+        const existingJobs =
+          JSON.parse(sessionStorage.getItem("employerPostedJobs")) || [];
+        const updatedJobs = [...existingJobs, response.data.newJob];
+        sessionStorage.setItem(
+          "employerPostedJobs",
+          JSON.stringify(updatedJobs)
+        );
+
+        resetForm(); // Reset form after successful submission
+      } else {
+        // Handle cases where the response may not be in the expected format
+        throw new Error("Unexpected response from the server.");
+      }
     } catch (error) {
       const errorMessage =
         error.response?.data?.error ||

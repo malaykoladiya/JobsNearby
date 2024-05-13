@@ -321,10 +321,7 @@ def post_jobs():
         A JSON response indicating whether the job was posted successfully or not.
     """
     
-    # Check if the user is an employer
-    if session.get('user_type') != 'employer':
-        return jsonify({"error": "Acess denied! Only employers can post jobs."}), 403
-    
+ 
     """
         requst body format:
 
@@ -338,6 +335,10 @@ def post_jobs():
         }
     """
 
+   # Check if the user is an employer
+    if session.get('user_type') != 'employer':
+        return jsonify({"error": "Acess denied! Only employers can post jobs."}), 403
+    
     data = request.json
     if data is None or not bool(data):
         return jsonify({"error": "no data provided"}), 400
@@ -373,8 +374,13 @@ def post_jobs():
     }
 
     try:
-        db.jobs.insert_one(job_data)
-        return jsonify({"message": "Job posted Successfully!"}), 200
+        result = db.jobs.insert_one(job_data)
+        
+        job_data['_id'] = str(result.inserted_id)  # Convert ObjectId to string
+        job_data['employer_id'] = str(job_data['employer_id'])  # Convert this ObjectId to string if necessary
+
+
+        return jsonify({"message": "Job posted successfully!", "newJob": job_data}), 200
     except pymongo.errors.DuplicateKeyError:
         return jsonify({'error':'You have already posted a job with this ID'}), 400
     except pymongo.errors.PyMongoError as e:

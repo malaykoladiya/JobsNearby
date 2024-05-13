@@ -10,24 +10,53 @@ export const EmployerJobProvider = ({ children }) => {
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
 
+  const cacheJobs = (jobs) => {
+    sessionStorage.setItem("employerPostedJobs", JSON.stringify(jobs));
+  };
+
+  const fetchJobsFromCache = () => {
+    const cachedJobs = sessionStorage.getItem("employerPostedJobs");
+    if (cachedJobs) {
+      return JSON.parse(cachedJobs);
+    }
+    return null;
+  };
+
   const employerFetchJobs = async () => {
-    if (jobs.length > 0) {
-      // If jobs data is already available, don't make an API call
+    const cachedJobs = fetchJobsFromCache();
+    if (cachedJobs) {
+      setJobs(cachedJobs);
       return;
     }
     try {
       const response = await httpClient.get("/employer/viewjobs");
-      setJobs(response.data.jobs);
+      if (response.data && response.data.jobs) {
+        setJobs(response.data.jobs);
+        cacheJobs(response.data.jobs);
+      }
     } catch (error) {
       console.error("Failed to fetch jobs", error);
     }
   };
 
+  // const employerFetchJobs = async () => {
+  //   if (jobs.length > 0) {
+  //     // If jobs data is already available, don't make an API call
+  //     return;
+  //   }
+  //   try {
+  //     const response = await httpClient.get("/employer/viewjobs");
+  //     setJobs(response.data.jobs);
+  //   } catch (error) {
+  //     console.error("Failed to fetch jobs", error);
+  //   }
+  // };
+
   useEffect(() => {
     if (userType === "employer") {
       employerFetchJobs();
     }
-  }, []);
+  }, [employerFetchJobs]);
 
   const handleSelectJob = (job) => {
     setSelectedJob(job);

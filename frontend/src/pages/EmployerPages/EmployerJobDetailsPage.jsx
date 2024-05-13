@@ -82,23 +82,34 @@ const EmployerJobDetailsPage = () => {
 
       // Make the PATCH request with the formData
       const response = await httpClient.patch(jobUpdateUrl, formData);
-      toast.success(response.data.message || "Job updated successfully!");
+      if (response.data && response.data.job) {
+        toast.success(response.data.message || "Job updated successfully!");
 
-      // Update the selectedJob in the context
-      handleSelectJob(response.data.job);
-      setJobDetail(response.data.job);
+        // Update the selectedJob in the context
+        handleSelectJob(response.data.job);
+        setJobDetail(response.data.job);
 
-      // Update the jobs array in the context
-      const updatedJobs = jobs.map((job) =>
-        job._id === response.data.job._id ? response.data.job : job
-      );
-      setJobs(updatedJobs);
+        // Update the jobs array in the context
+        const updatedJobs = jobs.map((job) =>
+          job._id === response.data.job._id ? response.data.job : job
+        );
+        setJobs(updatedJobs);
 
-      // Close the modal
-      setIsModalOpen(false);
+        // Also update the session storage
+        sessionStorage.setItem(
+          "employerPostedJobs",
+          JSON.stringify(updatedJobs)
+        );
 
-      // Optional: Refresh the job details or trigger a re-render/update state
-      // fetchJobDetails(formData.jobId);
+        // Close the modal
+        setIsModalOpen(false);
+
+        // Optional: Refresh the job details or trigger a re-render/update state
+        // fetchJobDetails(formData.jobId);
+      } else {
+        // Handle the case where the job data is not returned
+        throw new Error("No job data returned from the server.");
+      }
     } catch (error) {
       // Extracting the error message from the response
       const errorMessage =
@@ -144,6 +155,10 @@ const EmployerJobDetailsPage = () => {
         const updatedJobs = jobs.filter((job) => job._id !== jobDetail._id);
         // Call the function to update the jobs in the context if necessary
         setJobs(updatedJobs);
+        sessionStorage.setItem(
+          "employerPostedJobs",
+          JSON.stringify(updatedJobs)
+        );
 
         // Redirect or update UI
         navigate("/employer/viewposted-jobs"); // Adjusted the path to match your desired route

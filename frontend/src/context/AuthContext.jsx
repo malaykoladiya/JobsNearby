@@ -25,12 +25,27 @@ export const AuthProvider = ({ children }) => {
   const [profile, setProfile] = useState(null);
 
   const fetchProfileData = async (userType) => {
-    try {
-      const profileData = await authService.getProfileData(userType);
-      setProfile(profileData);
-    } catch (error) {
-      // Handle the error appropriately
-      console.error("Failed to fetch job seeker profile", error);
+    const profileCacheKey = `profileData-${userType}`;
+    const savedProfileData = sessionStorage.getItem(profileCacheKey);
+    if (savedProfileData) {
+      try {
+        const profileData = JSON.parse(savedProfileData);
+        setProfile(profileData);
+      } catch (error) {
+        console.error("Failed to parse profile data from cache", error);
+      }
+    } else {
+      try {
+        const profileData = await authService.getProfileData(userType);
+        if (profileData && Object.keys(profileData).length) {
+          sessionStorage.setItem(profileCacheKey, JSON.stringify(profileData));
+          setProfile(profileData);
+        } else {
+          console.error("No profile data received");
+        }
+      } catch (error) {
+        console.error("Failed to fetch profile data", error);
+      }
     }
   };
 
@@ -93,6 +108,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async (userType) => {
     try {
       await authService.logout(userType);
+      sessionStorage.clear();
       setCurrentUser(null);
       setUserType(null);
       setProfile(null);
@@ -102,22 +118,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Function to update the job seeker's profile
   const updateProfile = async (userType, profileData) => {
+    const profileCacheKey = `profileData-${userType}`;
     try {
       const response = await authService.updateProfileData(
         userType,
         profileData
       );
-
-      if (response) {
-        setProfile(response.data); // If response contains the updated profile
-        return response; // <-- Make sure to return the data
+      if (response && response.data) {
+        sessionStorage.setItem(profileCacheKey, JSON.stringify(response.data));
+        setProfile(response.data);
+        return response;
       } else {
         throw new Error("No response received from the server.");
       }
     } catch (error) {
-      // Handle the error appropriately
       console.error("Failed to update profile", error);
       throw error;
     }
