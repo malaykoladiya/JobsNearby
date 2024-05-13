@@ -39,24 +39,11 @@ export const EmployerJobProvider = ({ children }) => {
     }
   };
 
-  // const employerFetchJobs = async () => {
-  //   if (jobs.length > 0) {
-  //     // If jobs data is already available, don't make an API call
-  //     return;
-  //   }
-  //   try {
-  //     const response = await httpClient.get("/employer/viewjobs");
-  //     setJobs(response.data.jobs);
-  //   } catch (error) {
-  //     console.error("Failed to fetch jobs", error);
-  //   }
-  // };
-
   useEffect(() => {
     if (userType === "employer") {
       employerFetchJobs();
     }
-  }, [employerFetchJobs]);
+  }, []);
 
   const handleSelectJob = (job) => {
     setSelectedJob(job);
